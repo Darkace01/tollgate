@@ -6,7 +6,7 @@ All notable changes to Tollgate are documented here.
 
 First public release.
 
-- **C# and .NET support:** `dotnet format`, `dotnet build`, CSharpier and `dotnet test` checks that turn on automatically in repos with a solution or project file. MSBuild and CSharpier output becomes findings with file and line. .NET-aware defaults: `bin/` and `obj/` are excluded, `*.user` / `*.suo` / `.vs/` / `*.publishsettings` are blocked, `Debugger.Break()` is flagged, connection-string passwords are detected, and comments are allowed in `appsettings.json` and `launchSettings.json`.
+- **C# and .NET support:** `dotnet format`, `dotnet build`, CSharpier and `dotnet test` checks that turn on automatically in repos with a solution or project file. MSBuild and CSharpier output becomes findings with file and line. .NET-aware defaults: `bin/` and `obj/` are excluded, `*.user` / `*.suo` / `.vs/` / `*.publishsettings` are blocked, `Debugger.Break()` is flagged, connection-string passwords are detected, and comments are allowed in `appsettings.json` and `launchSettings.json`. Old-style (non-SDK) projects are skipped, since `dotnet build` can't load them.
 - **Visual Studio extension** (`visualstudio/`): the same runner and config in Visual Studio 2022+, with a Tollgate tool window, Error List integration and Tools › Tollgate commands.
 - Runner commands for editors and scripts: `list [--json]`, `toggle <id> on|off [--local]`, `config set <path> <value> [--local]`.
 

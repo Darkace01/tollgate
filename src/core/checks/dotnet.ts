@@ -67,6 +67,21 @@ function nearestProject(root: string, file: string): string | undefined {
   }
 }
 
+/**
+ * Old-style (non-SDK) projects, such as .NET Framework apps and VSIX extensions, need Visual Studio's MSBuild:
+ * `dotnet build` / `dotnet format` can't load them reliably. SDK-style projects declare an `Sdk`.
+ */
+export function isLegacyProject(root: string, rel: string): boolean {
+  let xml: string;
+  try {
+    xml = fs.readFileSync(path.join(root, rel), 'utf8');
+  } catch {
+    return false;
+  }
+  if (/<Project[^>]*\sSdk\s*=|<Sdk\s|\sSdk\s*=\s*"[^"]+"/i.test(xml)) return false;
+  return /schemas\.microsoft\.com\/developer\/msbuild\/2003|Microsoft\.(CSharp|VisualBasic|FSharp)\.targets/i.test(xml);
+}
+
 export interface DotnetTarget {
   /** Repo-relative solution/project path ('' = repo root folder). */
   path: string;
@@ -78,7 +93,7 @@ export interface DotnetTarget {
  * What to hand to `dotnet build/format/test`:
  *   configured `target` → the single solution at the repo root → the projects owning the staged files.
  */
-export async function resolveDotnetTargets(root: string, cfg: GuardConfig, files: string[]): Promise<DotnetTarget[]> {
+export async function resolveDotnetTargets(root: string, cfg: GuardConfig, files: string[], skippedLegacy: string[] = []): Promise<DotnetTarget[]> {
   const c = cfg.checks.dotnet;
   const toTarget = (p: string): DotnetTarget => ({ path: normalizePath(p), dir: normalizePath(path.dirname(p)) === '.' ? '' : normalizePath(path.dirname(p)) });
   if (c.target) return [toTarget(c.target)];
@@ -100,8 +115,17 @@ export async function resolveDotnetTargets(root: string, cfg: GuardConfig, files
     const r = await git(['ls-files', '-z', '--', '*.csproj', '*.vbproj', '*.fsproj'], root);
     for (const p of r.stdout.toString('utf8').split('\0').filter(Boolean)) projects.add(normalizePath(p));
   }
-  return [...projects].sort().map(toTarget);
+  const usable = [...projects].sort().filter((p) => {
+    if (!isLegacyProject(root, p)) return true;
+    skippedLegacy.push(p);
+    return false;
+  });
+  return usable.map(toTarget);
 }
+
+/** Summary for a run where every project was old-style. */
+const legacySummary = (skipped: string[]) =>
+  `Skipped ${skipped.map((p) => path.basename(p)).join(', ')}: old-style (non-SDK) project${skipped.length === 1 ? '' : 's'} need Visual Studio's MSBuild`;
 
 const within = (file: string, dir: string) => !dir || file.startsWith(`${dir}/`);
 
@@ -183,6 +207,7 @@ function formatCheck(cfg: GuardConfig, root: string, csharpier: boolean): CheckD
       const fix = c.format.applyFixes && ctx.mode === 'staged';
       const partial = fix ? new Set(await unstagedFiles(root)) : new Set<string>();
       const files = ctx.mode === 'staged' ? staged.filter((f) => !fix || !partial.has(f)) : [];
+      const skipped: string[] = [];
       const verify = fix ? '' : ' --verify-no-changes';
       const jobs: { label: string; args: string }[] = [];
       if (mode === 'whitespace') {
@@ -192,7 +217,7 @@ function formatCheck(cfg: GuardConfig, root: string, csharpier: boolean): CheckD
         }
       } else {
         const sub = mode === 'all' ? '' : ` ${mode}`;
-        for (const t of await resolveDotnetTargets(root, cfg, staged)) {
+        for (const t of await resolveDotnetTargets(root, cfg, staged, skipped)) {
           const mine = files.filter((f) => within(f, t.dir));
           if (ctx.mode === 'staged' && !mine.length) continue;
           for (const chunk of mine.length ? chunkArgs(mine) : [[]]) {
@@ -200,7 +225,7 @@ function formatCheck(cfg: GuardConfig, root: string, csharpier: boolean): CheckD
           }
         }
       }
-      if (!jobs.length) return { status: 'skipped', summary: 'No .NET project found for the staged files' };
+      if (!jobs.length) return { status: 'skipped', summary: skipped.length ? legacySummary(skipped) : 'No .NET project found for the staged files' };
       const out = await runAcrossTargets(rc, jobs, fix ? `Formatted ${files.length} file(s)` : `${files.length || 'All'} file(s) formatted correctly`);
       if (fix && out.status === 'passed' && files.length) await stageFiles(root, files);
       if (out.status === 'failed' && !fix) out.summary = `${out.summary} — run "dotnet format" to fix`;
@@ -221,8 +246,9 @@ function buildCheck(cfg: GuardConfig, root: string): CheckDef {
       const rc = { ctx, cfg, root };
       const staged = await stagedDotnetFiles(rc);
       if (!staged.length && ctx.mode === 'staged') return { status: 'skipped', summary: 'No staged .NET files' };
-      const targets = await resolveDotnetTargets(root, cfg, staged);
-      if (!targets.length) return { status: 'skipped', summary: 'No .NET solution or project found' };
+      const skipped: string[] = [];
+      const targets = await resolveDotnetTargets(root, cfg, staged, skipped);
+      if (!targets.length) return { status: 'skipped', summary: skipped.length ? legacySummary(skipped) : 'No .NET solution or project found' };
       const flags = `-nologo -v q -clp:NoSummary -c ${q(c.build.configuration)}${c.build.warningsAsErrors ? ' -warnaserror' : ''}${
         c.build.extraArgs.length ? ` ${c.build.extraArgs.map(q).join(' ')}` : ''
       }`;
@@ -245,8 +271,9 @@ function testCheck(cfg: GuardConfig, root: string, stage: Stage): CheckDef {
     kind: 'command',
     run: async (ctx) => {
       const rc = { ctx, cfg, root };
-      const targets = await resolveDotnetTargets(root, cfg, await stagedDotnetFiles(rc));
-      if (!targets.length) return { status: 'skipped', summary: 'No .NET solution or project found' };
+      const skipped: string[] = [];
+      const targets = await resolveDotnetTargets(root, cfg, await stagedDotnetFiles(rc), skipped);
+      if (!targets.length) return { status: 'skipped', summary: skipped.length ? legacySummary(skipped) : 'No .NET solution or project found' };
       const flags = `--nologo -v q${c.test.filter ? ` --filter ${q(c.test.filter)}` : ''}${c.test.extraArgs.length ? ` ${c.test.extraArgs.map(q).join(' ')}` : ''}`;
       return runAcrossTargets(
         rc,

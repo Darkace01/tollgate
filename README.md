@@ -154,7 +154,7 @@ All `.tollgaterc.json` options (`checks`, `custom`, `extends`, `failOn`, `exclud
 
 ## C# and .NET
 
-Tollgate turns its .NET checks on when your repo has a `.sln`, `.slnx` or project file and the `dotnet` CLI is on your PATH. Without the SDK, the checks are skipped and never block.
+Tollgate turns its .NET checks on when your repo has a `.sln`, `.slnx` or project file and the `dotnet` CLI is on your PATH. Without the SDK, the checks are skipped and never block. Old-style (non-SDK) projects, such as classic .NET Framework apps and VSIX extensions, can't be built with `dotnet build`, so they're skipped too.
 
 | Part | What it runs | Default |
 | --- | --- | --- |

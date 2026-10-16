@@ -203,6 +203,22 @@ test('.NET target resolution and CSharpier detection', async () => {
     ['src/Api/Api.csproj', 'tests/Api.Tests/Api.Tests.csproj'],
   );
   assert.equal(t1[0].dir, 'src/Api');
+  // Old-style (non-SDK) projects such as VSIX extensions are skipped: dotnet build can't load them.
+  fs.mkdirSync(path.join(dir, 'src', 'Vsix'), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'src', 'Vsix', 'Vsix.csproj'),
+    '<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003"><Import Project="$(MSBuildToolsPath)\\Microsoft.CSharp.targets" /></Project>',
+  );
+  const skipped: string[] = [];
+  const t2 = await resolveDotnetTargets(dir, cfg, ['src/Vsix/Package.cs', 'src/Api/A.cs'], skipped);
+  assert.deepEqual(
+    t2.map((t) => t.path),
+    ['src/Api/Api.csproj'],
+  );
+  assert.deepEqual(skipped, ['src/Vsix/Vsix.csproj']);
+  fs.writeFileSync(path.join(dir, 'src', 'Vsix', 'Vsix.csproj'), '<Project Sdk="Microsoft.NET.Sdk"><Import Project="x\\Microsoft.CSharp.targets" /></Project>');
+  assert.equal((await resolveDotnetTargets(dir, cfg, ['src/Vsix/Package.cs'])).length, 1);
+  fs.rmSync(path.join(dir, 'src', 'Vsix'), { recursive: true });
   // A single root solution wins.
   fs.writeFileSync(path.join(dir, 'Acme.slnx'), '<Solution/>');
   assert.deepEqual(

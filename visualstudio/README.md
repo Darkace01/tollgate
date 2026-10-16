@@ -16,7 +16,7 @@ All of the checking logic lives in the runner (`dist/cli.js` at the repo root). 
 
 ## Build
 
-Requires Windows, Visual Studio 2022 or later with the **Visual Studio extension development** workload, and Node.js.
+Requires Windows, Visual Studio 2022 (17.13 or later, for `.slnx` solutions) with the **Visual Studio extension development** workload, and Node.js. Without that workload, Visual Studio can't load `Tollgate.VisualStudio.csproj` and reports "The application which this project type is based on was not found". Add the workload in the Visual Studio Installer (**Modify › Workloads › Visual Studio extension development**).
 
 ```powershell
 npm ci
@@ -26,7 +26,7 @@ msbuild visualstudio\src\Tollgate.VisualStudio\Tollgate.VisualStudio.csproj /res
 
 The VSIX is written to `visualstudio\src\Tollgate.VisualStudio\bin\Release\Tollgate.VisualStudio.vsix`. CI builds it on every push (the `visualstudio` job), and you can download it from the run's artifacts.
 
-To debug, open `visualstudio\Tollgate.VisualStudio.sln`, set **Tollgate.VisualStudio** as the startup project and press **F5**. That launches an experimental instance of Visual Studio with the extension loaded.
+To debug, open `visualstudio\Tollgate.VisualStudio.slnx`, set **Tollgate.VisualStudio** as the startup project and press **F5**. That launches an experimental instance of Visual Studio with the extension loaded.
 
 Run the Core tests on any OS with the .NET 8 SDK:
 

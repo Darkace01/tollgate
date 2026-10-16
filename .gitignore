@@ -10,3 +10,4 @@ visualstudio/**/bin/
 visualstudio/**/obj/
 visualstudio/src/Tollgate.VisualStudio/runner/cli.js
 *.user
+UpgradeLog*.htm

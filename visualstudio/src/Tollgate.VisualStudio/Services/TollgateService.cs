@@ -223,7 +223,7 @@ namespace Tollgate.VisualStudio
                 },
                 KnownMonikers.StatusInformation,
                 true);
-            var bar = VS.InfoBar.CreateInfoBar(SolutionExplorerWindow, model);
+            var bar = await VS.InfoBar.CreateAsync(SolutionExplorerWindow, model);
             if (bar == null)
             {
                 await VS.StatusBar.ShowMessageAsync("Tollgate: git hooks aren't installed — use Tools › Tollgate › Install Git Hooks.");

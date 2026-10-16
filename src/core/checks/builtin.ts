@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import { stripJsonComments } from '../config';
 import { isBinary, isMergeInProgress } from '../git';
 import { matchesAny } from '../glob';
 import type { Finding, GuardConfig, PatternRule } from '../types';
@@ -56,6 +57,11 @@ export const SECRET_RULES: PatternRule[] = [
   { name: 'SendGrid key', pattern: '\\bSG\\.[A-Za-z0-9_-]{22}\\.[A-Za-z0-9_-]{43}\\b' },
   { name: 'Twilio key', pattern: '\\bSK[0-9a-fA-F]{32}\\b' },
   { name: 'JSON Web Token', pattern: '\\beyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}' },
+  {
+    name: 'Connection string password',
+    pattern: '(?:Server|Data Source|Host|Endpoint|AccountName)\\s*=[^;\'"]*;.*?\\b(?:Password|Pwd)\\s*=\\s*([^;\'"\\s]{4,})',
+    flags: 'i',
+  },
   { name: 'Credentials in URL', pattern: '\\b[a-z][a-z0-9+.-]{1,20}://[^\\s:/@\'"]+:([^\\s:/@\'"$]{3,})@[^\\s/\'"]+', flags: 'i' },
   {
     name: 'Hard-coded credential',
@@ -99,8 +105,8 @@ export function secretsCheck(cfg: GuardConfig): CheckDef {
             if (!m) continue;
             // Rules capture the secret value in group 1 when they have one; otherwise the whole match is the value.
             const value = m[1] ?? m[0];
-            if (PLACEHOLDER.test(value) || /process\.env|os\.environ|getenv/i.test(text)) continue;
-            push({ file, line, column: m.index + 1, rule: r.name, message: `${r.name}: ${mask(m[0])}${r.message ? ` — ${r.message}` : ''}` });
+            if (PLACEHOLDER.test(value) || /process\.env|os\.environ|getenv|GetEnvironmentVariable/i.test(text)) continue;
+            push({ file, line, column: m.index + 1, rule: r.name, message: `${r.name}: ${mask(value)}${r.message ? ` — ${r.message}` : ''}` });
             break;
           }
         }),
@@ -249,13 +255,14 @@ export function jsonSyntaxCheck(cfg: GuardConfig): CheckDef {
       const set = await ctx.fileSet();
       const findings: Finding[] = [];
       for (const file of set.files) {
-        if (!/\.json$/i.test(file) || isExcluded(ctx, file, c.exclude)) continue;
+        const jsonc = matchesAny(file, c.allowComments);
+        if (!(/\.json$/i.test(file) || (jsonc && /\.jsonc$/i.test(file))) || isExcluded(ctx, file, c.exclude)) continue;
         const buf = await set.read(file);
         if (!buf) continue;
         const text = buf.toString('utf8').replace(/^\uFEFF/, '');
         if (!text.trim()) continue;
         try {
-          JSON.parse(text);
+          JSON.parse(jsonc ? stripJsonComments(text) : text);
         } catch (e) {
           const msg = (e as Error).message;
           let line = 1;

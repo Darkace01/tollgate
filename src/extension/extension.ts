@@ -435,7 +435,9 @@ function registerCommands(context: vscode.ExtensionContext): void {
     const repo = node.repo;
     let where: string | undefined;
     if (node.custom) where = await updateCustom(repo.root, repo.folder?.uri, node.custom, { enabled: !node.enabled });
-    else if (node.npmScript) {
+    else if (node.dotnetPart) {
+      where = await updateConfigValue(repo.root, repo.folder?.uri, ['checks', 'dotnet', node.dotnetPart, 'enabled'], !node.enabled);
+    } else if (node.npmScript) {
       const scripts = repo.loaded!.config.checks.npmScripts.scripts.filter((s) => s !== node.npmScript);
       where = await updateConfigValue(repo.root, repo.folder?.uri, ['checks', 'npmScripts', 'scripts'], scripts);
     } else if (node.builtinKey) {

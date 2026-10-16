@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+  <Include href="KnownImageIds.vsct" />
+
+  <Commands package="guidTollgatePackage">
+    <Menus>
+      <!-- Tools > Tollgate -->
+      <Menu guid="guidTollgateCmdSet" id="TollgateMenu" priority="0x0700" type="Menu">
+        <Parent guid="guidTollgateCmdSet" id="ToolsMenuGroup" />
+        <Strings>
+          <ButtonText>Tollgate</ButtonText>
+        </Strings>
+      </Menu>
+    </Menus>
+
+    <Groups>
+      <Group guid="guidTollgateCmdSet" id="ToolsMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
+      </Group>
+      <Group guid="guidTollgateCmdSet" id="RunGroup" priority="0x0100">
+        <Parent guid="guidTollgateCmdSet" id="TollgateMenu" />
+      </Group>
+      <Group guid="guidTollgateCmdSet" id="HooksGroup" priority="0x0200">
+        <Parent guid="guidTollgateCmdSet" id="TollgateMenu" />
+      </Group>
+      <Group guid="guidTollgateCmdSet" id="ConfigGroup" priority="0x0300">
+        <Parent guid="guidTollgateCmdSet" id="TollgateMenu" />
+      </Group>
+    </Groups>
+
+    <Buttons>
+      <Button guid="guidTollgateCmdSet" id="ShowWindow" priority="0x0100" type="Button">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1" />
+        <Icon guid="ImageCatalogGuid" id="StatusInformation" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Tollgate</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidTollgateCmdSet" id="RunChecks" priority="0x0110" type="Button">
+        <Parent guid="guidTollgateCmdSet" id="RunGroup" />
+        <Icon guid="ImageCatalogGuid" id="Run" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DefaultDisabled</CommandFlag>
+        <Strings>
+          <ButtonText>Run Checks on Staged Changes</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidTollgateCmdSet" id="RunAllFiles" priority="0x0120" type="Button">
+        <Parent guid="guidTollgateCmdSet" id="RunGroup" />
+        <CommandFlag>DefaultDisabled</CommandFlag>
+        <Strings>
+          <ButtonText>Run Checks on All Files</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidTollgateCmdSet" id="RunPrePush" priority="0x0130" type="Button">
+        <Parent guid="guidTollgateCmdSet" id="RunGroup" />
+        <CommandFlag>DefaultDisabled</CommandFlag>
+        <Strings>
+          <ButtonText>Run Pre-Push Checks</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidTollgateCmdSet" id="InstallHooks" priority="0x0210" type="Button">
+        <Parent guid="guidTollgateCmdSet" id="HooksGroup" />
+        <CommandFlag>DefaultDisabled</CommandFlag>
+        <Strings>
+          <ButtonText>Install Git Hooks</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidTollgateCmdSet" id="UninstallHooks" priority="0x0220" type="Button">
+        <Parent guid="guidTollgateCmdSet" id="HooksGroup" />
+        <CommandFlag>DefaultDisabled</CommandFlag>
+        <Strings>
+          <ButtonText>Remove Git Hooks</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidTollgateCmdSet" id="OpenConfig" priority="0x0310" type="Button">
+        <Parent guid="guidTollgateCmdSet" id="ConfigGroup" />
+        <Icon guid="ImageCatalogGuid" id="Settings" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DefaultDisabled</CommandFlag>
+        <Strings>
+          <ButtonText>Open .tollgaterc.json</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidTollgateCmdSet" id="TogglePause" priority="0x0320" type="Button">
+        <Parent guid="guidTollgateCmdSet" id="ConfigGroup" />
+        <Icon guid="ImageCatalogGuid" id="Pause" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DefaultDisabled</CommandFlag>
+        <CommandFlag>TextChanges</CommandFlag>
+        <Strings>
+          <ButtonText>Pause Tollgate (Just Me)</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidTollgateCmdSet" id="FixWhitespace" priority="0x0330" type="Button">
+        <Parent guid="guidTollgateCmdSet" id="ConfigGroup" />
+        <CommandFlag>DefaultDisabled</CommandFlag>
+        <Strings>
+          <ButtonText>Fix Whitespace &amp; Final Newlines in Staged Files</ButtonText>
+        </Strings>
+      </Button>
+    </Buttons>
+  </Commands>
+
+  <CommandPlacements>
+    <!-- Also show "Tollgate" (the window) at the top of Tools > Tollgate. -->
+    <CommandPlacement guid="guidTollgateCmdSet" id="ShowWindow" priority="0x0100">
+      <Parent guid="guidTollgateCmdSet" id="RunGroup" />
+    </CommandPlacement>
+  </CommandPlacements>
+
+  <Symbols>
+    <GuidSymbol name="guidTollgatePackage" value="{bc679fa5-bcfa-41f7-a880-619e98b0b9bb}" />
+    <GuidSymbol name="guidTollgateCmdSet" value="{0518bf0a-164e-4133-99d7-99059a22135c}">
+      <IDSymbol name="TollgateMenu" value="0x1000" />
+      <IDSymbol name="ToolsMenuGroup" value="0x1100" />
+      <IDSymbol name="RunGroup" value="0x1101" />
+      <IDSymbol name="HooksGroup" value="0x1102" />
+      <IDSymbol name="ConfigGroup" value="0x1103" />
+      <IDSymbol name="ShowWindow" value="0x0100" />
+      <IDSymbol name="RunChecks" value="0x0101" />
+      <IDSymbol name="RunAllFiles" value="0x0102" />
+      <IDSymbol name="RunPrePush" value="0x0103" />
+      <IDSymbol name="InstallHooks" value="0x0104" />
+      <IDSymbol name="UninstallHooks" value="0x0105" />
+      <IDSymbol name="OpenConfig" value="0x0106" />
+      <IDSymbol name="TogglePause" value="0x0107" />
+      <IDSymbol name="FixWhitespace" value="0x0108" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

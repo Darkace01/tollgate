@@ -6,6 +6,10 @@ All notable changes to Tollgate are documented here.
 
 First public release.
 
+- **C# and .NET support:** `dotnet format`, `dotnet build`, CSharpier and `dotnet test` checks that turn on automatically in repos with a solution or project file. MSBuild and CSharpier output becomes findings with file and line. .NET-aware defaults: `bin/` and `obj/` are excluded, `*.user` / `*.suo` / `.vs/` / `*.publishsettings` are blocked, `Debugger.Break()` is flagged, connection-string passwords are detected, and comments are allowed in `appsettings.json` and `launchSettings.json`.
+- **Visual Studio extension** (`visualstudio/`): the same runner and config in Visual Studio 2022+, with a Tollgate tool window, Error List integration and Tools › Tollgate commands.
+- Runner commands for editors and scripts: `list [--json]`, `toggle <id> on|off [--local]`, `config set <path> <value> [--local]`.
+
 - Real git hooks (`pre-commit`, `commit-msg`, `pre-push`) backed by a self-contained runner, so checks run for commits from VS Code, the terminal or any Git client.
 - Built-in checks: package.json scripts, **Biome**, **Prettier** (check, or format and re-stage), lint-staged, secrets, merge conflict markers, debug statements, TODOs, trailing whitespace, final newline, JSON syntax, large files, forbidden files, protected branches, branch naming, and commit message format (Conventional Commits, ticket IDs).
 - Custom command checks with `{files}` and other placeholders, glob filters, per-stage control, and re-staging for formatters.

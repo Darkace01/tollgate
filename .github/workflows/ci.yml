@@ -31,3 +31,27 @@ jobs:
         with:
           name: vsix
           path: '*.vsix'
+
+  visualstudio:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+      - run: git config --global user.email ci@example.com && git config --global user.name CI
+      - run: npm ci
+      - run: npm run build
+      - name: Tollgate.Core tests (against the real runner)
+        run: dotnet run --project visualstudio/tests/Tollgate.Core.Tests -c Release -- dist/cli.js
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build the Visual Studio extension
+        run: msbuild visualstudio/src/Tollgate.VisualStudio/Tollgate.VisualStudio.csproj /restore /p:Configuration=Release /v:minimal
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tollgate-visualstudio-vsix
+          path: visualstudio/src/Tollgate.VisualStudio/bin/Release/*.vsix

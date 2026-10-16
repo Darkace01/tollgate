@@ -67,6 +67,77 @@ const checks = {
         timeoutSec: { type: 'number', minimum: 1, default: 300 },
       },
     },
+    dotnet: {
+      type: 'object',
+      additionalProperties: false,
+      description: 'C# / .NET: dotnet format, dotnet build, CSharpier and dotnet test. `auto` turns on when a .sln/.slnx/.csproj/.vbproj/.fsproj exists.',
+      properties: {
+        enabled: {
+          oneOf: [{ type: 'boolean' }, { const: 'auto' }],
+          default: 'auto',
+          description: '`auto` runs when the repo contains a .NET solution or project.',
+        },
+        severity,
+        target: {
+          type: 'string',
+          description:
+            'Solution or project to use, relative to the repo root (e.g. "src/Acme.sln"). Auto-detected when empty: the root solution, else the projects owning the staged files.',
+        },
+        fileExtensions: { type: 'array', items: { type: 'string' }, description: 'Staged files that make the .NET checks relevant.' },
+        exclude: globs('Globs to ignore, on top of the global `exclude`.'),
+        timeoutSec: { type: 'number', minimum: 1, default: 600 },
+        format: {
+          type: 'object',
+          additionalProperties: false,
+          description: '`dotnet format --verify-no-changes` on staged C#/VB files (respects .editorconfig).',
+          properties: {
+            enabled: { type: 'boolean', default: true },
+            mode: {
+              type: 'string',
+              enum: ['auto', 'all', 'whitespace', 'style', 'analyzers'],
+              default: 'auto',
+              description: '`auto` = `all`, or `style` when CSharpier handles formatting. `whitespace` is the fastest (no MSBuild).',
+            },
+            applyFixes: { type: 'boolean', default: false, description: 'Format fully-staged files and re-stage them instead of failing.' },
+          },
+        },
+        build: {
+          type: 'object',
+          additionalProperties: false,
+          description: '`dotnet build` — catches compile errors before they reach the repo.',
+          properties: {
+            enabled: { type: 'boolean', default: true },
+            configuration: { type: 'string', default: 'Debug' },
+            warningsAsErrors: { type: 'boolean', default: false, description: 'Pass -warnaserror (on in the strict preset).' },
+            extraArgs: { type: 'array', items: { type: 'string' }, description: 'Extra arguments, e.g. ["--no-restore"].' },
+          },
+        },
+        test: {
+          type: 'object',
+          additionalProperties: false,
+          description: '`dotnet test` (off by default; on at pre-push in the strict preset).',
+          properties: {
+            enabled: { type: 'boolean', default: false },
+            stage: { ...stage, default: 'pre-push' },
+            filter: { type: 'string', description: 'dotnet test --filter expression, e.g. "Category!=Integration".' },
+            extraArgs: { type: 'array', items: { type: 'string' } },
+          },
+        },
+        csharpier: {
+          type: 'object',
+          additionalProperties: false,
+          description: 'CSharpier formatting check (https://csharpier.com).',
+          properties: {
+            enabled: {
+              oneOf: [{ type: 'boolean' }, { const: 'auto' }],
+              default: 'auto',
+              description: '`auto` runs when CSharpier is in .config/dotnet-tools.json or a .csharpierrc file exists.',
+            },
+            applyFixes: { type: 'boolean', default: false, description: 'Format fully-staged files and re-stage them.' },
+          },
+        },
+      },
+    },
     prettier: {
       type: 'object',
       additionalProperties: false,
@@ -140,7 +211,15 @@ const checks = {
     ),
     trailingWhitespace: base('Trailing spaces/tabs on added lines (auto-fixable).', {}, { enabled: false, severity: 'warning' }),
     eofNewline: base('Files must end with a newline (auto-fixable).', {}, { enabled: false, severity: 'warning' }),
-    jsonSyntax: base('Staged .json files must parse.', {}, { enabled: true, severity: 'error' }),
+    jsonSyntax: base(
+      'Staged .json files must parse.',
+      {
+        allowComments: globs(
+          'Files parsed as JSON with comments and trailing commas (appsettings.json, launchSettings.json, tsconfig.json, .vscode/**, *.jsonc…).',
+        ),
+      },
+      { enabled: true, severity: 'error' },
+    ),
     largeFiles: base('Block files over a size limit.', { maxSizeKB: { type: 'number', minimum: 1, default: 1024 } }, { enabled: true, severity: 'error' }),
     forbiddenFiles: base(
       'Block files that should never be committed (.env, keys…).',

@@ -63,6 +63,50 @@ export interface PrettierConfig {
   timeoutSec: number;
 }
 
+export type DotnetFormatMode = 'auto' | 'all' | 'whitespace' | 'style' | 'analyzers';
+
+export interface DotnetConfig {
+  /** `auto` turns on when a .sln/.slnx/.csproj/.vbproj/.fsproj is found in the repo. */
+  enabled: boolean | 'auto';
+  severity: Severity;
+  /** Solution or project to use (relative to repo root). Auto-detected when empty. */
+  target?: string;
+  /** Staged files that make the .NET checks relevant. */
+  fileExtensions: string[];
+  /** Globs to ignore, on top of the global `exclude`. */
+  exclude?: string[];
+  timeoutSec: number;
+  format: {
+    enabled: boolean;
+    /** `auto` = `all`, or `style` when CSharpier handles formatting. */
+    mode: DotnetFormatMode;
+    /** Apply fixes and re-stage fully-staged files instead of only verifying. */
+    applyFixes: boolean;
+  };
+  build: {
+    enabled: boolean;
+    configuration: string;
+    warningsAsErrors: boolean;
+    extraArgs: string[];
+  };
+  test: {
+    enabled: boolean;
+    stage: Stage;
+    filter?: string;
+    extraArgs: string[];
+  };
+  csharpier: {
+    /** `auto` runs when CSharpier is configured (.csharpierrc* or a dotnet tool manifest entry). */
+    enabled: boolean | 'auto';
+    applyFixes: boolean;
+  };
+}
+
+export interface JsonSyntaxConfig extends BaseCheckConfig {
+  /** Files parsed as JSON-with-comments (e.g. appsettings.json, tsconfig.json). */
+  allowComments: string[];
+}
+
 export interface SecretsConfig extends BaseCheckConfig {
   extraPatterns: PatternRule[];
   /** Regexes; a matched line that also matches any of these is ignored. */
@@ -131,13 +175,14 @@ export interface ChecksConfig {
   lintStaged: LintStagedConfig;
   biome: BiomeConfig;
   prettier: PrettierConfig;
+  dotnet: DotnetConfig;
   secrets: SecretsConfig;
   conflictMarkers: BaseCheckConfig;
   debugStatements: DebugStatementsConfig;
   todoComments: TodoConfig;
   trailingWhitespace: BaseCheckConfig;
   eofNewline: BaseCheckConfig;
-  jsonSyntax: BaseCheckConfig;
+  jsonSyntax: JsonSyntaxConfig;
   largeFiles: LargeFilesConfig;
   forbiddenFiles: ForbiddenFilesConfig;
   protectedBranches: ProtectedBranchesConfig;

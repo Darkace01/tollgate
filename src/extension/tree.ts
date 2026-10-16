@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { customCheckId } from '../core/checks/commands';
+import { isDotnetRepo } from '../core/checks/dotnet';
 import { collectChecks } from '../core/engine';
 import { stagedFiles } from '../core/git';
 import type { CheckResult, ChecksConfig, CustomCheck, Finding, Stage } from '../core/types';
@@ -11,6 +12,7 @@ export const BUILTIN_LABELS: Record<keyof ChecksConfig, string> = {
   lintStaged: 'lint-staged',
   biome: 'Biome',
   prettier: 'Prettier',
+  dotnet: '.NET (C#)',
   secrets: 'Secrets & credentials',
   conflictMarkers: 'Merge conflict markers',
   debugStatements: 'Debug statements',
@@ -40,11 +42,16 @@ export type Node =
       builtinKey?: keyof ChecksConfig;
       custom?: CustomCheck;
       npmScript?: string;
+      /** Sub-check of the .NET check: format / build / test / csharpier. */
+      dotnetPart?: DotnetPart;
       result?: CheckResult;
     }
   | { type: 'finding'; repo: Repo; finding: Finding; severity: 'error' | 'warning' }
   | { type: 'output'; repo: Repo; result: CheckResult }
   | { type: 'info'; label: string; icon: string; command?: vscode.Command; tooltip?: string };
+
+export type DotnetPart = 'format' | 'build' | 'test' | 'csharpier';
+export const DOTNET_PART_LABELS: Record<DotnetPart, string> = { format: 'dotnet format', build: 'dotnet build', test: 'dotnet test', csharpier: 'CSharpier' };
 
 export function builtinStage(key: keyof ChecksConfig, repo: Repo): Stage {
   if (key === 'commitMessage') return 'commit-msg';
@@ -136,10 +143,12 @@ export class ResultsTree implements vscode.TreeDataProvider<Node> {
     }
 
     const nodes: Node[] = defs.map((d) => {
-      const builtinKey = (d.id in config.checks ? d.id : d.id.startsWith('npmScripts:') ? 'npmScripts' : undefined) as keyof ChecksConfig | undefined;
+      const prefix = d.id.split(':')[0];
+      const builtinKey = (d.id in config.checks ? d.id : prefix === 'npmScripts' || prefix === 'dotnet' ? prefix : undefined) as keyof ChecksConfig | undefined;
+      const dotnetPart = prefix === 'dotnet' ? (d.id.split(':')[1] as DotnetPart) : undefined;
       const custom = d.id.startsWith('custom:') ? config.custom.find((c) => customCheckId(c) === d.id) : undefined;
       const npmScript = d.id.startsWith('npmScripts:') ? d.id.split(':').pop() : undefined;
-      return { type: 'check', repo, stage, id: d.id, name: d.name, enabled: true, builtinKey, custom, npmScript, result: results.get(d.id) };
+      return { type: 'check', repo, stage, id: d.id, name: d.name, enabled: true, builtinKey, custom, npmScript, dotnetPart, result: results.get(d.id) };
     });
     // Results from the last run for checks that no longer exist (e.g. scope changed) are dropped; disabled ones are listed for easy toggling.
     if (vscode.workspace.getConfiguration('tollgate').get<boolean>('showDisabledChecks', true)) {
@@ -147,6 +156,30 @@ export class ResultsTree implements vscode.TreeDataProvider<Node> {
         const c = config.checks[key] as { enabled: boolean | 'auto' };
         if (builtinStage(key, repo) !== stage) continue;
         if (c.enabled === false) nodes.push({ type: 'check', repo, stage, id: key, name: BUILTIN_LABELS[key], enabled: false, builtinKey: key });
+      }
+      // .NET sub-checks that are switched off (e.g. dotnet test) — only in repos where the .NET check is active.
+      const dn = config.checks.dotnet;
+      if (dn.enabled !== false && (dn.enabled === true || (await isDotnetRepo(repo.root)))) {
+        const parts: [DotnetPart, boolean, Stage][] = [
+          ['format', dn.format.enabled, 'pre-commit'],
+          ['build', dn.build.enabled, 'pre-commit'],
+          ['test', dn.test.enabled, dn.test.stage],
+          ['csharpier', dn.csharpier.enabled !== false, 'pre-commit'],
+        ];
+        for (const [part, on, partStage] of parts) {
+          if (!on && partStage === stage) {
+            nodes.push({
+              type: 'check',
+              repo,
+              stage,
+              id: `dotnet:${part}`,
+              name: DOTNET_PART_LABELS[part],
+              enabled: false,
+              builtinKey: 'dotnet',
+              dotnetPart: part,
+            });
+          }
+        }
       }
       for (const c of config.custom) {
         if ((c.stage ?? 'pre-commit') === stage && c.enabled === false && c.command) {

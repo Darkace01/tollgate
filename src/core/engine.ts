@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { builtinChecks } from './checks/builtin';
 import { biomeCheck, customChecks, lintStagedCheck, npmScriptChecks, prettierCheck } from './checks/commands';
 import type { CheckContext, CheckDef } from './checks/context';
+import { dotnetChecks } from './checks/dotnet';
 import { type ConfigSources, loadConfig } from './config';
 import { type FileSet, currentBranch, git, gitCommonDir, isBinary, stageFiles, stagedFileSet, unstagedFiles, workingTreeFileSet } from './git';
 import { matchesAny } from './glob';
@@ -42,6 +43,7 @@ export async function collectChecks(config: GuardConfig, root: string, stage: St
     ...lintStagedCheck(config, root, stage),
     ...biomeCheck(config, root, stage),
     ...prettierCheck(config, root, stage),
+    ...(await dotnetChecks(config, root, stage)),
     ...(await npmScriptChecks(config, root, stage, getFiles)),
     ...customChecks(config, root, stage),
   ];

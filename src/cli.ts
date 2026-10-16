@@ -2,10 +2,11 @@
 /* Tollgate runner — invoked by git hooks, usable standalone. No dependencies. */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { LOCAL_RC_FILE, RC_FILE, buildCatalog, setConfigValue, toggleCheck } from './core/catalog';
 import { loadConfig, sampleConfig } from './core/config';
-import { fixFiles, isBlocking, runChecks } from './core/engine';
-import { findRepoRoot, stageFiles, stagedFiles, unstagedFiles } from './core/git';
-import { editorSettingsPath, installHooks, uninstallHooks } from './core/hooks';
+import { fixFiles, isBlocking, runChecks, stateDir } from './core/engine';
+import { findRepoRoot, gitCommonDir, stageFiles, stagedFiles, unstagedFiles } from './core/git';
+import { editorSettingsPath, hookStatus, installHooks, uninstallHooks } from './core/hooks';
 import { formatReport, headline } from './core/reporter';
 import type { GuardConfig, Stage } from './core/types';
 
@@ -19,8 +20,11 @@ Usage:
   runner run [--all] [--stage <stage>] [--only a,b] [--skip a,b] [--json] [--verbose]
   runner fix                 Fix trailing whitespace / EOF newlines in staged files
   runner config              Print the resolved configuration
+  runner config set <path> <json> [--local]   Set a value in .tollgaterc.json (--local: .tollgaterc.local.json)
+  runner list [--json]       List every check (enabled and disabled), hook status and paths
+  runner toggle <id> <on|off> [--local]       Enable/disable a check (writes .tollgaterc.json)
   runner init                Create a .tollgaterc.json in the repo root
-  runner install [--force]   Install git hooks (copies this runner into .git)
+  runner install [--force] [--node-fallback <path>]   Install git hooks (copies this runner into .git)
   runner uninstall           Remove git hooks
 
 Environment:
@@ -37,11 +41,25 @@ function parseArgs(argv: string[]) {
     if (a.startsWith('--')) {
       const [k, v] = a.slice(2).split('=');
       if (v !== undefined) flags[k] = v;
-      else if (['stage', 'only', 'skip'].includes(k)) flags[k] = argv[++i] ?? '';
+      else if (['stage', 'only', 'skip', 'node-fallback'].includes(k)) flags[k] = argv[++i] ?? '';
       else flags[k] = true;
     } else pos.push(a);
   }
   return { flags, pos };
+}
+
+/** Keep personal config out of commits without touching the team's .gitignore. */
+async function excludeLocalConfig(root: string): Promise<void> {
+  try {
+    const file = path.join(await gitCommonDir(root), 'info', 'exclude');
+    const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+    if (!text.split(/\r?\n/).includes(LOCAL_RC_FILE)) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.appendFileSync(file, `${text && !text.endsWith('\n') ? '\n' : ''}${LOCAL_RC_FILE}\n`);
+    }
+  } catch {
+    /* best effort */
+  }
 }
 
 const list = (v: unknown) =>
@@ -125,8 +143,59 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'config': {
+      if (pos[1] === 'set') {
+        if (!pos[2] || pos[3] === undefined) {
+          console.error('Usage: runner config set <dotted.path> <json-value>');
+          return 2;
+        }
+        const file = flags.local ? LOCAL_RC_FILE : RC_FILE;
+        setConfigValue(root, pos[2], pos[3], file);
+        if (flags.local) await excludeLocalConfig(root);
+        console.log(`Set ${pos[2]} in ${file}`);
+        return 0;
+      }
       const { config, sources } = loadConfig(root, { editorSettingsFile });
       console.log(JSON.stringify({ sources, config }, null, 2));
+      return 0;
+    }
+    case 'list': {
+      let loaded: ReturnType<typeof loadConfig> | undefined;
+      let configError: string | undefined;
+      try {
+        loaded = loadConfig(root, { editorSettingsFile });
+      } catch (e) {
+        configError = (e as Error).message;
+      }
+      const checks = loaded ? await buildCatalog(loaded.config, root, () => stagedFiles(root)) : [];
+      const info = {
+        version: VERSION,
+        root,
+        stateDir: await stateDir(root),
+        configError,
+        sources: loaded?.sources ?? [],
+        enabled: loaded?.config.enabled ?? true,
+        preset: loaded?.config.extends,
+        hooks: await hookStatus(root),
+        checks,
+      };
+      if (flags.json) console.log(JSON.stringify(info, null, 2));
+      else {
+        for (const c of checks) console.log(`${c.enabled ? '●' : '○'} ${c.stage.padEnd(10)} ${c.id.padEnd(28)} ${c.name}`);
+        console.log(`\nhooks installed: ${info.hooks.installed.join(', ') || 'none'}`);
+      }
+      return 0;
+    }
+    case 'toggle': {
+      const [id, state] = [pos[1], pos[2]];
+      if (!id || !['on', 'off', 'true', 'false'].includes(state ?? '')) {
+        console.error('Usage: runner toggle <check-id> <on|off>');
+        return 2;
+      }
+      const config = loadConfig(root, { editorSettingsFile }).config;
+      const on = state === 'on' || state === 'true';
+      const where = toggleCheck(root, config, id, on, flags.local ? LOCAL_RC_FILE : RC_FILE);
+      if (flags.local) await excludeLocalConfig(root);
+      console.log(`${on ? 'Enabled' : 'Disabled'} ${id} in ${where}`);
       return 0;
     }
     case 'init': {
@@ -141,9 +210,10 @@ async function main(): Promise<number> {
     }
     case 'install': {
       const config = loadConfig(root, { editorSettingsFile }).config;
-      const r = await installHooks(root, { stages: config.hooks, runnerSource: __filename, version: VERSION, force: !!flags.force });
+      const nodeFallback = typeof flags['node-fallback'] === 'string' ? flags['node-fallback'] : undefined;
+      const r = await installHooks(root, { stages: config.hooks, runnerSource: __filename, version: VERSION, force: !!flags.force, nodeFallback });
       if (!r.ok) {
-        console.error(`core.hooksPath is set to "${r.hooksPath}" (husky?). Re-run with --force, or use the VS Code command "Integrate with Husky".`);
+        console.error(`core.hooksPath is set to "${r.hooksPath}" (husky?). Re-run with --force, or use "Integrate with Husky" in the VS Code extension.`);
         return 1;
       }
       console.log(`Installed hooks: ${r.installed.join(', ')}${r.backedUp.length ? ` (existing hooks kept and chained: ${r.backedUp.join(', ')})` : ''}`);

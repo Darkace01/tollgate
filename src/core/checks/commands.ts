@@ -90,7 +90,16 @@ export function parseToolOutput(output: string, cwd: string, root: string): Find
         continue;
       }
     }
-    if ((m = /^(.+?)\((\d+),(\d+)\): (error|warning) (TS\d+): (.*)$/.exec(line))) {
+    // CSharpier: "Error ./src/A.cs - Was not formatted." (1.x prints the same shape for check failures)
+    if ((m = /^(?:Error|Warning)\s+(.+?\.(?:cs|csx))\s+-\s+(.*)$/.exec(line))) {
+      const file = rel(m[1]);
+      if (file) {
+        add({ file, line: 1, rule: 'csharpier', message: m[2] || 'Not formatted with CSharpier' });
+        continue;
+      }
+    }
+    // tsc and MSBuild/dotnet: "src/a.ts(3,5): error TS2322: …", "C:\x\A.cs(12,7,12,9): error CS0103: … [C:\x\A.csproj]"
+    if ((m = /^\s*(?:\d+>)?(.+?)\((\d+),(\d+)(?:,\d+,\d+)?\): (error|warning) ([A-Za-z]+\d+|[A-Z_]+): (.*?)(?: \[[^\]]+\])?$/.exec(line))) {
       const file = rel(m[1]);
       if (file) add({ file, line: +m[2], column: +m[3], rule: m[5], message: m[6] });
       continue;
@@ -125,7 +134,7 @@ export function parseToolOutput(output: string, cwd: string, root: string): Find
   return findings;
 }
 
-function commandOutcome(res: Awaited<ReturnType<typeof runShell>>, command: string, cwd: string, root: string, timeoutSec: number): CheckOutcome {
+export function commandOutcome(res: Awaited<ReturnType<typeof runShell>>, command: string, cwd: string, root: string, timeoutSec: number): CheckOutcome {
   const findings = parseToolOutput(res.output, cwd, root);
   if (res.cancelled) return { status: 'skipped', summary: 'Cancelled', command, output: res.output };
   if (res.timedOut) return { status: 'error', summary: `Timed out after ${timeoutSec}s`, command, output: res.output, findings };
@@ -469,7 +478,7 @@ export function customCheckId(c: CustomCheck): string {
 }
 
 /** Split file args into chunks so Windows' ~8K command-line limit is never hit. */
-function chunkArgs(files: string[], maxLen = 6000): string[][] {
+export function chunkArgs(files: string[], maxLen = 6000): string[][] {
   const chunks: string[][] = [];
   let cur: string[] = [];
   let len = 0;

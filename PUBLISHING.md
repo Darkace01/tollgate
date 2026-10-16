@@ -56,6 +56,10 @@ npm run publish:vsce                # or: npx vsce publish patch  (bumps the ver
 npx ovsx publish -p <open-vsx-token> # optional
 ```
 
+## Visual Studio extension
+
+The Visual Studio version lives in `visualstudio/` and is published separately, under the same publisher. The CI `visualstudio` job builds the `.vsix` on every push. See [visualstudio/README.md](visualstudio/README.md#publish-to-the-visual-studio-marketplace) for building and publishing it with `VsixPublisher.exe`.
+
 ## Pre-flight checklist
 
 - [ ] `npm run lint && npm test` pass

@@ -225,3 +225,45 @@ test('Prettier check auto-detects .prettierrc, blocks unformatted files, and app
   assert.notEqual(r.code, 0, r.out);
   assert.match(r.out, /syntax error/);
 });
+
+test('.NET: dotnet format + build block a broken C# commit; applyFixes formats and re-stages', () => {
+  const v = spawnSync('dotnet', ['--version'], { encoding: 'utf8', env: { ...process.env, DOTNET_NOLOGO: '1', DOTNET_CLI_TELEMETRY_OPTOUT: '1' } });
+  if (v.status !== 0) return; // no .NET SDK on this machine
+  const tfm = `net${v.stdout.trim().split('.')[0] ?? '8'}.0`;
+  repo = fs.mkdtempSync(path.join(os.tmpdir(), 'tg-dotnet-'));
+  git('init', '-q', '-b', 'feature/dotnet');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 'Test');
+  git('config', 'commit.gpgsign', 'false');
+  // Offline-friendly: no package sources needed for a dependency-free library.
+  write('nuget.config', '<?xml version="1.0" encoding="utf-8"?>\n<configuration><packageSources><clear /></packageSources></configuration>\n');
+  write('.gitignore', 'bin/\nobj/\n');
+  write(
+    'src/Lib/Lib.csproj',
+    `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>${tfm}</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup></Project>\n`,
+  );
+  write(
+    'src/Lib/Greeter.cs',
+    'namespace Lib;\n\npublic class Greeter\n{\n    public string Greet(string name)\n    {\n          var   message = "Hello " + name;\n        return mesage;\n    }\n}\n',
+  );
+  git('add', '.');
+  assert.equal(sh('node', [CLI, 'install']).code, 0);
+
+  let r = commit('feat: add greeter');
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /dotnet format/);
+  assert.match(r.out, /src\/Lib\/Greeter\.cs:7:\d+\s+Fix whitespace formatting/);
+  assert.match(r.out, /src\/Lib\/Greeter\.cs:8:16\s+The name 'mesage' does not exist/);
+
+  // Fix the compile error but leave the formatting: applyFixes should format + re-stage it.
+  write(
+    'src/Lib/Greeter.cs',
+    'namespace Lib;\n\npublic class Greeter\n{\n    public string Greet(string name)\n    {\n          var   message = "Hello " + name;\n        return message;\n    }\n}\n',
+  );
+  write('.tollgaterc.json', JSON.stringify({ checks: { dotnet: { format: { applyFixes: true } } } }));
+  git('add', '.');
+  r = commit('feat: add greeter');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /dotnet build\s+Built Lib\.csproj/);
+  assert.match(git('show', 'HEAD:src/Lib/Greeter.cs').out, /\n {8}var message = "Hello " \+ name;\n/);
+});

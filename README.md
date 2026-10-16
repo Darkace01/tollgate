@@ -32,12 +32,13 @@
 | **Biome** | `biome check` on staged files when the project uses Biome | ✅ auto |
 | **Prettier** | `prettier --check` on staged files when the project uses Prettier. Can format and re-stage for you. | ✅ auto |
 | **lint-staged** | Runs your lint-staged config | ✅ auto |
-| **Secrets & credentials** | AWS, GitHub, GitLab, Stripe, Slack, Google, OpenAI, Anthropic, npm, Azure, SendGrid and Twilio keys, JWTs, private keys, passwords in code and in URLs. Matches are masked in the output. | ✅ blocks |
+| **.NET (C#)** | `dotnet format` on staged C#/VB files, `dotnet build`, CSharpier if you use it, and optionally `dotnet test` on push. See [C# and .NET](#c-and-net). | ✅ auto |
+| **Secrets & credentials** | AWS, GitHub, GitLab, Stripe, Slack, Google, OpenAI, Anthropic, npm, Azure, SendGrid and Twilio keys, JWTs, private keys, passwords in code, in URLs and in connection strings. Matches are masked in the output. | ✅ blocks |
 | **Merge conflict markers** | `<<<<<<<` / `=======` / `>>>>>>>` | ✅ blocks |
-| **JSON syntax** | Staged `.json` files must parse | ✅ blocks |
+| **JSON syntax** | Staged `.json` files must parse (comments are allowed in `tsconfig.json`, `appsettings.json`, `launchSettings.json` and `.vscode/`) | ✅ blocks |
 | **Large files** | Files over 1 MB (configurable) | ✅ blocks |
-| **Forbidden files** | `.env`, `*.pem`, `*.key`, `id_rsa`, … (`.env.example` is allowed) | ✅ blocks |
-| **Debug statements** | `console.log`, `debugger`, `it.only` / `describe.only`, `pdb`, `binding.pry` | ⚠️ warns |
+| **Forbidden files** | `.env`, `*.pem`, `*.key`, `id_rsa`, `*.user`, `*.suo`, `.vs/`, `bin/` and `obj/` output, `*.publishsettings`, … (`.env.example` is allowed) | ✅ blocks |
+| **Debug statements** | `console.log`, `debugger`, `it.only` / `describe.only`, `pdb`, `binding.pry`, `Debugger.Break()` | ⚠️ warns |
 | **Protected branches** | Committing straight to `main` / `master` | ⚠️ warns |
 | **TODO / FIXME** | Newly added TODOs | off |
 | **Trailing whitespace** · **Final newline** | Both can be fixed automatically | off |
@@ -151,6 +152,32 @@ The terminal output always lists the IDs of the checks that failed, so you can c
 
 All `.tollgaterc.json` options (`checks`, `custom`, `extends`, `failOn`, `exclude`, `hooks`, `autoFix`, …) can also be set as `tollgate.*` VS Code settings.
 
+## C# and .NET
+
+Tollgate turns its .NET checks on when your repo has a `.sln`, `.slnx` or project file and the `dotnet` CLI is on your PATH. Without the SDK, the checks are skipped and never block.
+
+| Part | What it runs | Default |
+| --- | --- | --- |
+| `dotnet:format` | `dotnet format --verify-no-changes`, limited to the staged files and following your `.editorconfig` | ✅ blocks |
+| `dotnet:build` | `dotnet build` on the solution, or on the projects that own the staged files. Errors are reported with file and line. | ✅ blocks |
+| `dotnet:csharpier` | `csharpier check` when CSharpier is in `.config/dotnet-tools.json` or the repo has a `.csharpierrc` (replaces `dotnet format` whitespace checks) | ✅ auto |
+| `dotnet:test` | `dotnet test`, at pre-push | off (on in `strict`) |
+
+```jsonc
+{
+  "checks": {
+    "dotnet": {
+      "target": "src/App.sln",                    // optional; found automatically
+      "format": { "mode": "whitespace", "applyFixes": true },  // auto | full | whitespace | style | analyzers
+      "build": { "configuration": "Release", "warningsAsErrors": true },
+      "test": { "enabled": true, "filter": "Category!=Integration" }
+    }
+  }
+}
+```
+
+Skip it for one commit with `SKIP=dotnet git commit …`, or only the build with `SKIP=dotnet:build`. Using Visual Studio? Tollgate is [available there too](visualstudio/README.md), with the same config.
+
 ## Works with your existing setup
 
 - **Existing git hooks** are kept and run before Tollgate's checks.
@@ -166,6 +193,8 @@ node .git/tollgate/runner.js run            # check staged changes
 node .git/tollgate/runner.js run --all      # check every tracked file
 node .git/tollgate/runner.js run --only secrets,biome --json
 node .git/tollgate/runner.js config         # show the resolved config and which sources it was built from
+node .git/tollgate/runner.js list --json    # every check, enabled or not
+node .git/tollgate/runner.js toggle dotnet:build off --local
 ```
 
 ## FAQ

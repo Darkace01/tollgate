@@ -107,6 +107,7 @@ test('secret scanner: detects provider keys, ignores placeholders and env lookup
     j('-----BEGIN RSA ', 'PRIVATE KEY-----'),
     j("password = 'hunter2", "hunter2'"),
     j('DATABASE_URL=postgres://admin:', 's3cretpw', '@db.example.com/app'),
+    j('"Default": "Server=sql.acme.dev;Database=app;User Id=sa;Pass', 'word=Sup3rS3cret!;"'),
     // should be ignored:
     j("password = 'change", "me'"),
     j('password: "${', 'DB_PASSWORD}"'),
@@ -140,7 +141,9 @@ test('secret scanner: detects provider keys, ignores placeholders and env lookup
   assert.equal(hit.get(5), 'Private key');
   assert.equal(hit.get(6), 'Hard-coded credential');
   assert.equal(hit.get(7), 'Credentials in URL');
-  for (const l of [8, 9, 10, 11]) assert.ok(!hit.has(l), `line ${l} should not be flagged`);
+  assert.equal(hit.get(8), 'Connection string password');
+  for (const l of [9, 10, 11, 12]) assert.ok(!hit.has(l), `line ${l} should not be flagged`);
+  assert.ok((out.findings ?? []).find((f) => f.line === 8)?.message.includes('Sup3…t!'), 'masks the password itself');
   for (const f of out.findings ?? []) assert.ok(!f.message.includes('4eC39HqLyjWDarjtT1zdp7dc'), 'secret is masked');
 });
 
@@ -156,4 +159,141 @@ test('commit message length: 500 by default, configurable, 0 = unlimited', () =>
   assert.ok(Array.isArray(d) && d.some((f) => /Subject is 501 chars \(max 500\)/.test(f.message)));
   const unlimited = deepMerge(cfg, { checks: { commitMessage: { maxSubjectLength: 0 } } });
   assert.deepEqual(validateCommitMessage(huge, unlimited), []);
+});
+
+test('MSBuild / dotnet format / CSharpier output parsing', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tg-ms-'));
+  fs.mkdirSync(path.join(dir, 'src', 'App'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'src', 'App', 'Greeter.cs'), '');
+  const abs = path.join(dir, 'src', 'App', 'Greeter.cs');
+  const out = [
+    `${abs}(8,16): error CS0103: The name 'mesage' does not exist in the current context [${dir}/src/App/App.csproj]`,
+    `${abs}(7,9): error WHITESPACE: Fix whitespace formatting. Delete 2 characters. [.]`,
+    `  1>${abs}(3,1,3,5): warning CA1822: Member can be static [${dir}/src/App/App.csproj]`,
+    'Error ./src/App/Greeter.cs - Was not formatted.',
+    '/usr/lib/dotnet/sdk/8.0/Microsoft.Common.targets(30,3): error MSB4024: outside the repo [x.csproj]',
+  ].join('\n');
+  const f = parseToolOutput(out, dir, dir);
+  assert.deepEqual(f[0], {
+    file: 'src/App/Greeter.cs',
+    line: 8,
+    column: 16,
+    rule: 'CS0103',
+    message: "The name 'mesage' does not exist in the current context",
+  });
+  assert.equal(f[1].rule, 'WHITESPACE');
+  assert.equal(f[1].message, 'Fix whitespace formatting. Delete 2 characters.');
+  assert.equal(f[2].rule, 'CA1822');
+  assert.deepEqual(f[3], { file: 'src/App/Greeter.cs', line: 1, rule: 'csharpier', message: 'Was not formatted.' });
+  assert.equal(f.length, 4, 'files outside the repo are ignored');
+});
+
+test('.NET target resolution and CSharpier detection', async () => {
+  const { resolveDotnetTargets, detectCsharpier } = await import('../src/core/checks/dotnet');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tg-dn-'));
+  fs.mkdirSync(path.join(dir, 'src', 'Api'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'tests', 'Api.Tests'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'src', 'Api', 'Api.csproj'), '<Project/>');
+  fs.writeFileSync(path.join(dir, 'tests', 'Api.Tests', 'Api.Tests.csproj'), '<Project/>');
+  const cfg = baseDefaults();
+  // No solution: the projects owning the staged files.
+  const t1 = await resolveDotnetTargets(dir, cfg, ['src/Api/Controllers/Home.cs', 'tests/Api.Tests/HomeTests.cs', 'README.md']);
+  assert.deepEqual(
+    t1.map((t) => t.path),
+    ['src/Api/Api.csproj', 'tests/Api.Tests/Api.Tests.csproj'],
+  );
+  assert.equal(t1[0].dir, 'src/Api');
+  // A single root solution wins.
+  fs.writeFileSync(path.join(dir, 'Acme.slnx'), '<Solution/>');
+  assert.deepEqual(
+    (await resolveDotnetTargets(dir, cfg, ['src/Api/A.cs'])).map((t) => t.path),
+    ['Acme.slnx'],
+  );
+  // Explicit target wins over everything.
+  const explicit = deepMerge(cfg, { checks: { dotnet: { target: 'src/Api/Api.csproj' } } });
+  assert.deepEqual(
+    (await resolveDotnetTargets(dir, explicit, [])).map((t) => t.path),
+    ['src/Api/Api.csproj'],
+  );
+
+  assert.deepEqual(detectCsharpier(dir), { active: false, legacy: false });
+  fs.mkdirSync(path.join(dir, '.config'));
+  fs.writeFileSync(
+    path.join(dir, '.config', 'dotnet-tools.json'),
+    JSON.stringify({ version: 1, tools: { csharpier: { version: '0.30.6', commands: ['dotnet-csharpier'] } } }),
+  );
+  assert.deepEqual(detectCsharpier(dir), { active: true, legacy: true });
+  fs.writeFileSync(
+    path.join(dir, '.config', 'dotnet-tools.json'),
+    JSON.stringify({ version: 1, tools: { csharpier: { version: '1.1.2', commands: ['csharpier'] } } }),
+  );
+  assert.deepEqual(detectCsharpier(dir), { active: true, legacy: false });
+});
+
+test('JSON syntax: comments allowed in .NET/TS config files, strict elsewhere', async () => {
+  const { jsonSyntaxCheck } = await import('../src/core/checks/builtin');
+  const cfg = baseDefaults();
+  const files: Record<string, string> = {
+    'src/App/appsettings.Development.json': '{\n  // dev only\n  "A": 1,\n}\n',
+    'data/strict.json': '{\n  // not allowed here\n  "A": 1\n}\n',
+    'data/ok.json': '{"A": [1, 2]}',
+  };
+  const ctx = {
+    root: '/',
+    config: cfg,
+    stage: 'pre-commit',
+    mode: 'staged',
+    branch: 'x',
+    signal: new AbortController().signal,
+    pushFiles: async () => [],
+    fileSet: async () => ({
+      mode: 'staged',
+      root: '/',
+      files: Object.keys(files),
+      addedLines: async () => [],
+      read: async (f: string) => Buffer.from(files[f]),
+      size: async () => 0,
+    }),
+  } as never;
+  const out = await jsonSyntaxCheck(cfg).run(ctx);
+  assert.deepEqual(
+    (out.findings ?? []).map((f) => f.file),
+    ['data/strict.json'],
+  );
+});
+
+test('toggleCheck / setConfigValue write .tollgaterc.json for every kind of check', async () => {
+  const { toggleCheck, setConfigValue, readRc } = await import('../src/core/catalog');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tg-rc-'));
+  fs.writeFileSync(path.join(dir, '.tollgaterc.json'), '{\n  // keep working with comments\n  "extends": "recommended",\n}\n');
+  const cfg = deepMerge(baseDefaults(), {
+    custom: [
+      { name: 'Stylelint', command: 'npx stylelint {files}' },
+      { id: 'unit', name: 'Unit tests', command: 'npm test' },
+    ],
+  });
+  toggleCheck(dir, cfg, 'secrets', false);
+  toggleCheck(dir, cfg, 'dotnet:test', true);
+  toggleCheck(dir, cfg, 'npmScripts:typecheck', false);
+  toggleCheck(dir, cfg, 'custom:stylelint', false);
+  toggleCheck(dir, cfg, 'custom:unit', false);
+  setConfigValue(dir, 'checks.dotnet.build.configuration', 'Release');
+  setConfigValue(dir, 'failOn', '"warning"');
+  // biome-ignore lint/suspicious/noExplicitAny: nested assertions on untyped JSON
+  const rc = readRc(dir) as Record<string, any>;
+  assert.equal(rc.extends, 'recommended');
+  assert.equal(rc.failOn, 'warning');
+  assert.equal(rc.checks.secrets.enabled, false);
+  assert.equal(rc.checks.dotnet.test.enabled, true);
+  assert.equal(rc.checks.dotnet.build.configuration, 'Release');
+  assert.ok(!rc.checks.npmScripts.scripts.includes('typecheck') && rc.checks.npmScripts.scripts.includes('lint'));
+  assert.deepEqual(rc.custom, [
+    { name: 'Stylelint', enabled: false },
+    { id: 'unit', enabled: false },
+  ]);
+  // The overrides merge back onto the original definitions.
+  const merged = deepMerge(cfg, rc);
+  assert.equal(merged.custom.find((c) => c.name === 'Stylelint')?.command, 'npx stylelint {files}');
+  assert.equal(merged.custom.find((c) => c.id === 'unit')?.enabled, false);
+  assert.throws(() => toggleCheck(dir, cfg, 'nope', true), /Unknown check/);
 });

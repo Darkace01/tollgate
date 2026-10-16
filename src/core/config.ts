@@ -28,6 +28,8 @@ export function baseDefaults(): GuardConfig {
       '**/yarn.lock',
       '**/pnpm-lock.yaml',
       '**/bun.lock',
+      '**/bin/**',
+      '**/obj/**',
     ],
     packageManager: 'auto',
     autoFix: false,
@@ -47,6 +49,33 @@ export function baseDefaults(): GuardConfig {
       lintStaged: { enabled: 'auto', severity: 'error', timeoutSec: 300 },
       biome: { enabled: 'auto', severity: 'error', mode: 'check', applyFixes: false, extraArgs: [], timeoutSec: 300 },
       prettier: { enabled: 'auto', severity: 'error', applyFixes: false, extraArgs: [], timeoutSec: 300 },
+      dotnet: {
+        enabled: 'auto',
+        severity: 'error',
+        fileExtensions: [
+          '.cs',
+          '.csx',
+          '.vb',
+          '.fs',
+          '.fsx',
+          '.csproj',
+          '.vbproj',
+          '.fsproj',
+          '.props',
+          '.targets',
+          '.sln',
+          '.slnx',
+          '.razor',
+          '.cshtml',
+          '.xaml',
+          '.editorconfig',
+        ],
+        timeoutSec: 600,
+        format: { enabled: true, mode: 'auto', applyFixes: false },
+        build: { enabled: true, configuration: 'Debug', warningsAsErrors: false, extraArgs: [] },
+        test: { enabled: false, stage: 'pre-push', extraArgs: [] },
+        csharpier: { enabled: 'auto', applyFixes: false },
+      },
       secrets: { enabled: true, severity: 'error', extraPatterns: [], allowlist: [] },
       conflictMarkers: { enabled: true, severity: 'error' },
       debugStatements: {
@@ -58,12 +87,26 @@ export function baseDefaults(): GuardConfig {
           { name: 'focused test', pattern: '\\b(it|describe|test)\\.only\\s*\\(|\\bf(it|describe)\\s*\\(', glob: ['**/*.{js,jsx,ts,tsx,mjs,cjs}'] },
           { name: 'breakpoint()', pattern: '^\\s*(breakpoint\\(\\)|import pdb|pdb\\.set_trace\\(\\))', glob: ['**/*.py'] },
           { name: 'binding.pry', pattern: '\\bbinding\\.pry\\b', glob: ['**/*.rb'] },
+          { name: 'Debugger.Break()', pattern: '\\bDebugger\\.(Break|Launch)\\s*\\(', glob: ['**/*.{cs,csx,vb,fs,razor,cshtml}'] },
         ],
       },
       todoComments: { enabled: false, severity: 'warning', keywords: ['TODO', 'FIXME', 'XXX', 'HACK'] },
       trailingWhitespace: { enabled: false, severity: 'warning', exclude: ['**/*.md'] },
       eofNewline: { enabled: false, severity: 'warning' },
-      jsonSyntax: { enabled: true, severity: 'error', exclude: ['**/tsconfig*.json', '**/.vscode/**', '**/jsconfig*.json', '**/.devcontainer/**'] },
+      jsonSyntax: {
+        enabled: true,
+        severity: 'error',
+        allowComments: [
+          '**/tsconfig*.json',
+          '**/jsconfig*.json',
+          '**/.vscode/**',
+          '**/.devcontainer/**',
+          '**/appsettings*.json',
+          '**/launchSettings.json',
+          '**/*.jsonc',
+          '**/.tollgaterc*.json',
+        ],
+      },
       largeFiles: { enabled: true, severity: 'error', maxSizeKB: 1024 },
       forbiddenFiles: {
         enabled: true,
@@ -82,6 +125,19 @@ export function baseDefaults(): GuardConfig {
           'id_ed25519',
           '*.keystore',
           '.npmrc.local',
+          // .NET / Visual Studio: per-user state, build output, publish credentials
+          '*.suo',
+          '*.user',
+          '*.userosscache',
+          '*.sln.docstates',
+          '**/.vs/**',
+          '**/bin/Debug/**',
+          '**/bin/Release/**',
+          '**/obj/Debug/**',
+          '**/obj/Release/**',
+          '**/obj/project.assets.json',
+          '*.publishsettings',
+          '*.pubxml.user',
         ],
       },
       protectedBranches: { enabled: true, severity: 'warning', branches: ['main', 'master'] },
@@ -118,6 +174,7 @@ export function presetOverrides(preset: Preset): PartialConfig {
           lintStaged: { enabled: false },
           biome: { mode: 'lint' },
           npmScripts: { scripts: ['lint'] },
+          dotnet: { format: { enabled: false } },
         },
       };
     case 'strict':
@@ -125,6 +182,7 @@ export function presetOverrides(preset: Preset): PartialConfig {
         failOn: 'error',
         checks: {
           debugStatements: { severity: 'error' },
+          dotnet: { build: { warningsAsErrors: true }, test: { enabled: true } },
           todoComments: { enabled: true, severity: 'warning' },
           trailingWhitespace: { enabled: true, severity: 'error' },
           eofNewline: { enabled: true, severity: 'error' },
@@ -213,9 +271,9 @@ export function stripJsonComments(text: string): string {
       continue;
     }
     if (c === '/' && n === '*') {
-      i += 2;
-      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
-      i++;
+      const end = text.indexOf('*/', i + 2);
+      out += text.slice(i, end < 0 ? text.length : end).replace(/[^\n]/g, '');
+      i = end < 0 ? text.length : end + 1;
       continue;
     }
     out += c;

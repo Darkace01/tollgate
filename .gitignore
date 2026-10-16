@@ -3,3 +3,10 @@ dist/
 out/
 *.vsix
 .tollgaterc.local.json
+
+# Visual Studio extension
+.vs/
+visualstudio/**/bin/
+visualstudio/**/obj/
+visualstudio/src/Tollgate.VisualStudio/runner/cli.js
+*.user

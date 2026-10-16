@@ -14,21 +14,13 @@
     },
     "extends": {
       "type": "string",
-      "enum": [
-        "minimal",
-        "recommended",
-        "strict",
-        "none"
-      ],
+      "enum": ["minimal", "recommended", "strict", "none"],
       "default": "recommended",
       "description": "Preset to start from; everything else overrides it."
     },
     "failOn": {
       "type": "string",
-      "enum": [
-        "error",
-        "warning"
-      ],
+      "enum": ["error", "warning"],
       "default": "error",
       "description": "Lowest severity that blocks the commit."
     },
@@ -53,13 +45,7 @@
     },
     "packageManager": {
       "type": "string",
-      "enum": [
-        "auto",
-        "npm",
-        "yarn",
-        "pnpm",
-        "bun"
-      ],
+      "enum": ["auto", "npm", "yarn", "pnpm", "bun"],
       "default": "auto",
       "description": "Used for package.json scripts. `auto` detects from lockfiles / \"packageManager\"."
     },
@@ -72,18 +58,10 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": [
-          "pre-commit",
-          "commit-msg",
-          "pre-push"
-        ]
+        "enum": ["pre-commit", "commit-msg", "pre-push"]
       },
       "uniqueItems": true,
-      "default": [
-        "pre-commit",
-        "commit-msg",
-        "pre-push"
-      ],
+      "default": ["pre-commit", "commit-msg", "pre-push"],
       "description": "Git hooks to install."
     },
     "checks": {
@@ -103,10 +81,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "error"
             },
@@ -136,20 +111,13 @@
             },
             "scope": {
               "type": "string",
-              "enum": [
-                "root",
-                "affected"
-              ],
+              "enum": ["root", "affected"],
               "description": "`root`: repo-root package.json only. `affected`: nearest package.json of each staged file (monorepos).",
               "default": "root"
             },
             "stage": {
               "type": "string",
-              "enum": [
-                "pre-commit",
-                "commit-msg",
-                "pre-push"
-              ],
+              "enum": ["pre-commit", "commit-msg", "pre-push"],
               "description": "Which git hook runs the scripts.",
               "default": "pre-commit"
             },
@@ -196,10 +164,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports."
             },
             "timeoutSec": {
@@ -228,19 +193,12 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports."
             },
             "mode": {
               "type": "string",
-              "enum": [
-                "check",
-                "lint",
-                "format"
-              ],
+              "enum": ["check", "lint", "format"],
               "default": "check",
               "description": "`check` = lint + format + organise imports."
             },
@@ -275,10 +233,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "error"
             },
@@ -293,9 +248,7 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "required": [
-                  "pattern"
-                ],
+                "required": ["pattern"],
                 "properties": {
                   "name": {
                     "type": "string"
@@ -350,10 +303,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "error"
             },
@@ -378,10 +328,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "warning"
             },
@@ -396,9 +343,7 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "required": [
-                  "pattern"
-                ],
+                "required": ["pattern"],
                 "properties": {
                   "name": {
                     "type": "string"
@@ -446,10 +391,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "warning"
             },
@@ -465,12 +407,7 @@
               "items": {
                 "type": "string"
               },
-              "default": [
-                "TODO",
-                "FIXME",
-                "XXX",
-                "HACK"
-              ]
+              "default": ["TODO", "FIXME", "XXX", "HACK"]
             }
           }
         },
@@ -486,10 +423,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "warning"
             },
@@ -514,10 +448,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "warning"
             },
@@ -542,10 +473,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "error"
             },
@@ -570,10 +498,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "error"
             },
@@ -603,10 +528,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "error"
             },
@@ -638,10 +560,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "warning"
             },
@@ -658,10 +577,7 @@
                 "type": "string"
               },
               "description": "Branch names or globs (release/*).",
-              "default": [
-                "main",
-                "master"
-              ]
+              "default": ["main", "master"]
             }
           }
         },
@@ -677,10 +593,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "warning"
             },
@@ -716,10 +629,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning"
-              ],
+              "enum": ["error", "warning"],
               "description": "`error` blocks the commit, `warning` only reports.",
               "default": "error"
             },
@@ -732,10 +642,7 @@
             },
             "preset": {
               "type": "string",
-              "enum": [
-                "conventional",
-                "none"
-              ],
+              "enum": ["conventional", "none"],
               "default": "conventional",
               "description": "`conventional` = Conventional Commits."
             },
@@ -780,9 +687,7 @@
       "description": "Your own checks: any shell command. Placeholders: {files} (matching staged files), {root}, {branch}, {msgFile}, {stagedCount}.",
       "items": {
         "type": "object",
-        "required": [
-          "name"
-        ],
+        "required": ["name"],
         "additionalProperties": false,
         "properties": {
           "id": {
@@ -812,19 +717,12 @@
           },
           "stage": {
             "type": "string",
-            "enum": [
-              "pre-commit",
-              "commit-msg",
-              "pre-push"
-            ],
+            "enum": ["pre-commit", "commit-msg", "pre-push"],
             "default": "pre-commit"
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "error",
-              "warning"
-            ],
+            "enum": ["error", "warning"],
             "description": "`error` blocks the commit, `warning` only reports.",
             "default": "error"
           },

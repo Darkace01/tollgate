@@ -1,0 +1,863 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Pre-Commit Guard configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Master switch. Set false to pause all checks."
+    },
+    "extends": {
+      "type": "string",
+      "enum": [
+        "minimal",
+        "recommended",
+        "strict",
+        "none"
+      ],
+      "default": "recommended",
+      "description": "Preset to start from; everything else overrides it."
+    },
+    "failOn": {
+      "type": "string",
+      "enum": [
+        "error",
+        "warning"
+      ],
+      "default": "error",
+      "description": "Lowest severity that blocks the commit."
+    },
+    "stopOnFirstFailure": {
+      "type": "boolean",
+      "default": false,
+      "description": "Stop remaining checks after the first blocking failure."
+    },
+    "concurrency": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 3,
+      "description": "How many command checks run in parallel."
+    },
+    "exclude": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Globs ignored by every file-based check. Replaces the default list."
+    },
+    "packageManager": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "npm",
+        "yarn",
+        "pnpm",
+        "bun"
+      ],
+      "default": "auto",
+      "description": "Used for package.json scripts. `auto` detects from lockfiles / \"packageManager\"."
+    },
+    "autoFix": {
+      "type": "boolean",
+      "default": false,
+      "description": "In the hook, auto-fix trailing whitespace / EOF newlines (when those checks are enabled) and re-stage fully-staged files."
+    },
+    "hooks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "pre-commit",
+          "commit-msg",
+          "pre-push"
+        ]
+      },
+      "uniqueItems": true,
+      "default": [
+        "pre-commit",
+        "commit-msg",
+        "pre-push"
+      ],
+      "description": "Git hooks to install."
+    },
+    "checks": {
+      "type": "object",
+      "description": "Built-in checks. Each one can be enabled/disabled and tuned. Unset values come from the preset.",
+      "additionalProperties": false,
+      "properties": {
+        "npmScripts": {
+          "type": "object",
+          "description": "Run package.json scripts (lint, typecheck, format:check…) when they exist.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": true
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "error"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            },
+            "scripts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Script names to run, in order, if present in package.json.",
+              "default": [
+                "lint",
+                "lint:check",
+                "typecheck",
+                "type-check",
+                "check-types",
+                "tsc",
+                "format:check",
+                "prettier:check"
+              ]
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "root",
+                "affected"
+              ],
+              "description": "`root`: repo-root package.json only. `affected`: nearest package.json of each staged file (monorepos).",
+              "default": "root"
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "pre-commit",
+                "commit-msg",
+                "pre-push"
+              ],
+              "description": "Which git hook runs the scripts.",
+              "default": "pre-commit"
+            },
+            "passStagedFiles": {
+              "type": "boolean",
+              "description": "Append staged files as arguments (npm run lint -- a.ts b.ts).",
+              "default": false
+            },
+            "fileExtensions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Staged files that make scripts relevant."
+            },
+            "alwaysRun": {
+              "type": "boolean",
+              "description": "Run even if no staged file matches fileExtensions.",
+              "default": false
+            },
+            "timeoutSec": {
+              "type": "number",
+              "minimum": 1,
+              "default": 300
+            }
+          }
+        },
+        "lintStaged": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Run lint-staged.",
+          "properties": {
+            "enabled": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "const": "auto"
+                }
+              ],
+              "description": "`auto` runs only when a lint-staged config exists.",
+              "default": "auto"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports."
+            },
+            "timeoutSec": {
+              "type": "number",
+              "minimum": 1,
+              "default": 300
+            }
+          }
+        },
+        "biome": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Run Biome (https://biomejs.dev) on staged files.",
+          "properties": {
+            "enabled": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "const": "auto"
+                }
+              ],
+              "description": "`auto` runs when biome.json(c) or @biomejs/biome is present and no package.json script already runs biome.",
+              "default": "auto"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports."
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "check",
+                "lint",
+                "format"
+              ],
+              "default": "check",
+              "description": "`check` = lint + format + organise imports."
+            },
+            "applyFixes": {
+              "type": "boolean",
+              "default": false,
+              "description": "Run with --write and re-stage fully-staged files."
+            },
+            "extraArgs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Extra CLI arguments, e.g. [\"--diagnostic-level=error\"]."
+            },
+            "timeoutSec": {
+              "type": "number",
+              "minimum": 1,
+              "default": 300
+            }
+          }
+        },
+        "secrets": {
+          "type": "object",
+          "description": "Detect API keys, tokens, private keys and hard-coded credentials in added lines.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": true
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "error"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            },
+            "extraPatterns": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "pattern"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "pattern": {
+                    "type": "string",
+                    "description": "JavaScript regular expression."
+                  },
+                  "flags": {
+                    "type": "string",
+                    "description": "RegExp flags, e.g. \"i\"."
+                  },
+                  "glob": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ],
+                    "description": "Only apply to matching files."
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Additional secret patterns."
+            },
+            "allowlist": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Regexes; matching lines are ignored. Inline: add `precommit-guard-ignore` or `pragma: allowlist secret` to a line."
+            }
+          }
+        },
+        "conflictMarkers": {
+          "type": "object",
+          "description": "Block unresolved merge conflict markers.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": true
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "error"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            }
+          }
+        },
+        "debugStatements": {
+          "type": "object",
+          "description": "Find console.log, debugger, .only tests, pdb, binding.pry…",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": true
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "warning"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            },
+            "patterns": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "pattern"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "pattern": {
+                    "type": "string",
+                    "description": "JavaScript regular expression."
+                  },
+                  "flags": {
+                    "type": "string",
+                    "description": "RegExp flags, e.g. \"i\"."
+                  },
+                  "glob": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ],
+                    "description": "Only apply to matching files."
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Replaces the default patterns."
+            }
+          }
+        },
+        "todoComments": {
+          "type": "object",
+          "description": "Report newly added TODO/FIXME comments.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": false
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "warning"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            },
+            "keywords": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "TODO",
+                "FIXME",
+                "XXX",
+                "HACK"
+              ]
+            }
+          }
+        },
+        "trailingWhitespace": {
+          "type": "object",
+          "description": "Trailing spaces/tabs on added lines (auto-fixable).",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": false
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "warning"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            }
+          }
+        },
+        "eofNewline": {
+          "type": "object",
+          "description": "Files must end with a newline (auto-fixable).",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": false
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "warning"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            }
+          }
+        },
+        "jsonSyntax": {
+          "type": "object",
+          "description": "Staged .json files must parse.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": true
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "error"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            }
+          }
+        },
+        "largeFiles": {
+          "type": "object",
+          "description": "Block files over a size limit.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": true
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "error"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            },
+            "maxSizeKB": {
+              "type": "number",
+              "minimum": 1,
+              "default": 1024
+            }
+          }
+        },
+        "forbiddenFiles": {
+          "type": "object",
+          "description": "Block files that should never be committed (.env, keys…).",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": true
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "error"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            },
+            "patterns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Glob patterns; prefix with ! to allow (e.g. \"!.env.example\")."
+            }
+          }
+        },
+        "protectedBranches": {
+          "type": "object",
+          "description": "Warn/block when committing directly to protected branches.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": true
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "warning"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            },
+            "branches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Branch names or globs (release/*).",
+              "default": [
+                "main",
+                "master"
+              ]
+            }
+          }
+        },
+        "branchName": {
+          "type": "object",
+          "description": "Branch names must match a pattern.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": false
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "warning"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            },
+            "pattern": {
+              "type": "string",
+              "description": "RegExp."
+            },
+            "ignore": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Exempt branches."
+            }
+          }
+        },
+        "commitMessage": {
+          "type": "object",
+          "description": "Validate the commit message (commit-msg hook).",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Turn this check on or off.",
+              "default": false
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning"
+              ],
+              "description": "`error` blocks the commit, `warning` only reports.",
+              "default": "error"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+            },
+            "preset": {
+              "type": "string",
+              "enum": [
+                "conventional",
+                "none"
+              ],
+              "default": "conventional",
+              "description": "`conventional` = Conventional Commits."
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Extra RegExp the whole message must match (multiline)."
+            },
+            "types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Allowed Conventional Commit types."
+            },
+            "minLength": {
+              "type": "number",
+              "default": 10
+            },
+            "maxSubjectLength": {
+              "type": "number",
+              "default": 72
+            },
+            "requireTicket": {
+              "type": "boolean",
+              "default": false,
+              "description": "Require a ticket reference such as ABC-123."
+            },
+            "ticketPattern": {
+              "type": "string",
+              "default": "[A-Z][A-Z0-9]+-\\d+"
+            },
+            "blankLineAfterSubject": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        }
+      }
+    },
+    "custom": {
+      "type": "array",
+      "description": "Your own checks: any shell command. Placeholders: {files} (matching staged files), {root}, {branch}, {msgFile}, {stagedCount}.",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id (used by SKIP=). Defaults to a slug of the name."
+          },
+          "name": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string",
+            "description": "Shell command, e.g. \"npx eslint --max-warnings 0 {files}\"."
+          },
+          "glob": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Only run when staged files match; {files} is filtered to these."
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "pre-commit",
+              "commit-msg",
+              "pre-push"
+            ],
+            "default": "pre-commit"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ],
+            "description": "`error` blocks the commit, `warning` only reports.",
+            "default": "error"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "cwd": {
+            "type": "string",
+            "description": "Working directory relative to repo root."
+          },
+          "timeoutSec": {
+            "type": "number",
+            "minimum": 1,
+            "default": 300
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "alwaysRun": {
+            "type": "boolean",
+            "description": "Run even when no staged file matches."
+          },
+          "restage": {
+            "type": "boolean",
+            "description": "Re-stage files changed by this command (formatters with --write/--fix)."
+          }
+        }
+      },
+      "default": []
+    }
+  }
+}

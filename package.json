@@ -1,0 +1,1327 @@
+{
+  "name": "precommit-guard",
+  "displayName": "Pre-Commit Guard",
+  "description": "Customisable pre-commit checks for VS Code and the terminal: runs your package.json lint/typecheck scripts, detects secrets, debug statements, conflict markers, large or forbidden files, enforces branch and commit message rules, and runs any custom command.",
+  "version": "1.0.0",
+  "publisher": "10star",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "pre-commit",
+    "git hooks",
+    "lint",
+    "husky",
+    "lint-staged",
+    "secrets",
+    "commit message",
+    "conventional commits",
+    "eslint"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:.git"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "precommitGuard.run",
+        "title": "Run Checks on Staged Changes",
+        "category": "Pre-Commit Guard",
+        "icon": "$(play)"
+      },
+      {
+        "command": "precommitGuard.runAll",
+        "title": "Run Checks on All Files",
+        "category": "Pre-Commit Guard",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "precommitGuard.runPrePush",
+        "title": "Run Pre-Push Checks",
+        "category": "Pre-Commit Guard",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "precommitGuard.runCheck",
+        "title": "Run This Check",
+        "category": "Pre-Commit Guard",
+        "icon": "$(play)"
+      },
+      {
+        "command": "precommitGuard.cancel",
+        "title": "Cancel Running Checks",
+        "category": "Pre-Commit Guard",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "precommitGuard.configureChecks",
+        "title": "Enable / Disable Checks…",
+        "category": "Pre-Commit Guard",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "precommitGuard.addCustomCheck",
+        "title": "Add Custom Check…",
+        "category": "Pre-Commit Guard",
+        "icon": "$(add)"
+      },
+      {
+        "command": "precommitGuard.selectPreset",
+        "title": "Choose Preset…",
+        "category": "Pre-Commit Guard",
+        "icon": "$(layers)"
+      },
+      {
+        "command": "precommitGuard.toggleCheck",
+        "title": "Toggle Check",
+        "category": "Pre-Commit Guard"
+      },
+      {
+        "command": "precommitGuard.disableCheck",
+        "title": "Disable Check",
+        "category": "Pre-Commit Guard",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "precommitGuard.enableCheck",
+        "title": "Enable Check",
+        "category": "Pre-Commit Guard",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "precommitGuard.setSeverity",
+        "title": "Change Severity…",
+        "category": "Pre-Commit Guard"
+      },
+      {
+        "command": "precommitGuard.fix",
+        "title": "Auto-fix Whitespace & EOF in Staged Files",
+        "category": "Pre-Commit Guard",
+        "icon": "$(wand)"
+      },
+      {
+        "command": "precommitGuard.installHooks",
+        "title": "Install Git Hooks",
+        "category": "Pre-Commit Guard",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "precommitGuard.uninstallHooks",
+        "title": "Uninstall Git Hooks",
+        "category": "Pre-Commit Guard",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "precommitGuard.integrateHusky",
+        "title": "Integrate with Husky / core.hooksPath",
+        "category": "Pre-Commit Guard"
+      },
+      {
+        "command": "precommitGuard.togglePause",
+        "title": "Pause / Resume Checks",
+        "category": "Pre-Commit Guard",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "precommitGuard.createConfig",
+        "title": "Create / Open .precommitrc.json",
+        "category": "Pre-Commit Guard",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "precommitGuard.showResolvedConfig",
+        "title": "Show Resolved Configuration",
+        "category": "Pre-Commit Guard",
+        "icon": "$(json)"
+      },
+      {
+        "command": "precommitGuard.openSettings",
+        "title": "Open Settings",
+        "category": "Pre-Commit Guard",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "precommitGuard.showOutput",
+        "title": "Show Output",
+        "category": "Pre-Commit Guard",
+        "icon": "$(output)"
+      },
+      {
+        "command": "precommitGuard.showCheckOutput",
+        "title": "Show Check Output",
+        "category": "Pre-Commit Guard",
+        "icon": "$(output)"
+      },
+      {
+        "command": "precommitGuard.clearResults",
+        "title": "Clear Results",
+        "category": "Pre-Commit Guard",
+        "icon": "$(clear-all)"
+      }
+    ],
+    "views": {
+      "scm": [
+        {
+          "id": "precommitGuard.results",
+          "name": "Pre-Commit Guard",
+          "icon": "media/shield.svg",
+          "contextualTitle": "Pre-Commit Guard"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "precommitGuard.results",
+        "contents": "Open a folder that is a git repository to use Pre-Commit Guard.\n[Open Folder](command:vscode.openFolder)",
+        "when": "!precommitGuard.hasRepo"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "precommitGuard.run",
+          "when": "view == precommitGuard.results",
+          "group": "navigation@1"
+        },
+        {
+          "command": "precommitGuard.runAll",
+          "when": "view == precommitGuard.results",
+          "group": "navigation@2"
+        },
+        {
+          "command": "precommitGuard.configureChecks",
+          "when": "view == precommitGuard.results",
+          "group": "navigation@3"
+        },
+        {
+          "command": "precommitGuard.addCustomCheck",
+          "when": "view == precommitGuard.results",
+          "group": "navigation@4"
+        },
+        {
+          "command": "precommitGuard.runPrePush",
+          "when": "view == precommitGuard.results",
+          "group": "1_run@1"
+        },
+        {
+          "command": "precommitGuard.fix",
+          "when": "view == precommitGuard.results",
+          "group": "1_run@2"
+        },
+        {
+          "command": "precommitGuard.cancel",
+          "when": "view == precommitGuard.results",
+          "group": "1_run@3"
+        },
+        {
+          "command": "precommitGuard.selectPreset",
+          "when": "view == precommitGuard.results",
+          "group": "2_config@1"
+        },
+        {
+          "command": "precommitGuard.createConfig",
+          "when": "view == precommitGuard.results",
+          "group": "2_config@2"
+        },
+        {
+          "command": "precommitGuard.showResolvedConfig",
+          "when": "view == precommitGuard.results",
+          "group": "2_config@3"
+        },
+        {
+          "command": "precommitGuard.openSettings",
+          "when": "view == precommitGuard.results",
+          "group": "2_config@4"
+        },
+        {
+          "command": "precommitGuard.togglePause",
+          "when": "view == precommitGuard.results",
+          "group": "2_config@5"
+        },
+        {
+          "command": "precommitGuard.installHooks",
+          "when": "view == precommitGuard.results",
+          "group": "3_hooks@1"
+        },
+        {
+          "command": "precommitGuard.integrateHusky",
+          "when": "view == precommitGuard.results",
+          "group": "3_hooks@2"
+        },
+        {
+          "command": "precommitGuard.uninstallHooks",
+          "when": "view == precommitGuard.results",
+          "group": "3_hooks@3"
+        },
+        {
+          "command": "precommitGuard.showOutput",
+          "when": "view == precommitGuard.results",
+          "group": "4_misc@1"
+        },
+        {
+          "command": "precommitGuard.clearResults",
+          "when": "view == precommitGuard.results",
+          "group": "4_misc@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "precommitGuard.runCheck",
+          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.enabled/",
+          "group": "inline@1"
+        },
+        {
+          "command": "precommitGuard.disableCheck",
+          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.enabled/",
+          "group": "inline@2"
+        },
+        {
+          "command": "precommitGuard.enableCheck",
+          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.disabled/",
+          "group": "inline@2"
+        },
+        {
+          "command": "precommitGuard.runCheck",
+          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.enabled/",
+          "group": "1@1"
+        },
+        {
+          "command": "precommitGuard.disableCheck",
+          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.enabled/",
+          "group": "1@2"
+        },
+        {
+          "command": "precommitGuard.enableCheck",
+          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.disabled/",
+          "group": "1@2"
+        },
+        {
+          "command": "precommitGuard.setSeverity",
+          "when": "view == precommitGuard.results && viewItem =~ /^check\\.(builtin|custom)/",
+          "group": "1@3"
+        },
+        {
+          "command": "precommitGuard.fix",
+          "when": "view == precommitGuard.results && viewItem =~ /\\.fixable$/",
+          "group": "inline@0"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "precommitGuard.run",
+          "when": "scmProvider == git",
+          "group": "navigation@-1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "precommitGuard.runCheck",
+          "when": "false"
+        },
+        {
+          "command": "precommitGuard.toggleCheck",
+          "when": "false"
+        },
+        {
+          "command": "precommitGuard.disableCheck",
+          "when": "false"
+        },
+        {
+          "command": "precommitGuard.enableCheck",
+          "when": "false"
+        },
+        {
+          "command": "precommitGuard.setSeverity",
+          "when": "false"
+        },
+        {
+          "command": "precommitGuard.showCheckOutput",
+          "when": "false"
+        }
+      ]
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": [
+          ".precommitrc.json",
+          ".precommitrc.local.json"
+        ],
+        "url": "./schemas/precommitrc.schema.json"
+      }
+    ],
+    "configuration": {
+      "title": "Pre-Commit Guard",
+      "properties": {
+        "precommitGuard.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Master switch. Set false to pause all checks.",
+          "order": 0,
+          "scope": "resource"
+        },
+        "precommitGuard.extends": {
+          "type": "string",
+          "enum": [
+            "minimal",
+            "recommended",
+            "strict",
+            "none"
+          ],
+          "default": "recommended",
+          "description": "Preset to start from; everything else overrides it.",
+          "order": 1,
+          "scope": "resource"
+        },
+        "precommitGuard.failOn": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warning"
+          ],
+          "default": "error",
+          "description": "Lowest severity that blocks the commit.",
+          "order": 2,
+          "scope": "resource"
+        },
+        "precommitGuard.stopOnFirstFailure": {
+          "type": "boolean",
+          "default": false,
+          "description": "Stop remaining checks after the first blocking failure.",
+          "order": 3,
+          "scope": "resource"
+        },
+        "precommitGuard.concurrency": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 16,
+          "default": 3,
+          "description": "How many command checks run in parallel.",
+          "order": 4,
+          "scope": "resource"
+        },
+        "precommitGuard.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Globs ignored by every file-based check. Replaces the default list.",
+          "order": 5,
+          "scope": "resource"
+        },
+        "precommitGuard.packageManager": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "npm",
+            "yarn",
+            "pnpm",
+            "bun"
+          ],
+          "default": "auto",
+          "description": "Used for package.json scripts. `auto` detects from lockfiles / \"packageManager\".",
+          "order": 6,
+          "scope": "resource"
+        },
+        "precommitGuard.autoFix": {
+          "type": "boolean",
+          "default": false,
+          "description": "In the hook, auto-fix trailing whitespace / EOF newlines (when those checks are enabled) and re-stage fully-staged files.",
+          "order": 7,
+          "scope": "resource"
+        },
+        "precommitGuard.hooks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "pre-commit",
+              "commit-msg",
+              "pre-push"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "pre-commit",
+            "commit-msg",
+            "pre-push"
+          ],
+          "description": "Git hooks to install.",
+          "order": 8,
+          "scope": "resource"
+        },
+        "precommitGuard.checks": {
+          "type": "object",
+          "description": "Built-in checks. Each one can be enabled/disabled and tuned. Unset values come from the preset.",
+          "additionalProperties": false,
+          "properties": {
+            "npmScripts": {
+              "type": "object",
+              "description": "Run package.json scripts (lint, typecheck, format:check…) when they exist.",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": true
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "error"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                },
+                "scripts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Script names to run, in order, if present in package.json.",
+                  "default": [
+                    "lint",
+                    "lint:check",
+                    "typecheck",
+                    "type-check",
+                    "check-types",
+                    "tsc",
+                    "format:check",
+                    "prettier:check"
+                  ]
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "root",
+                    "affected"
+                  ],
+                  "description": "`root`: repo-root package.json only. `affected`: nearest package.json of each staged file (monorepos).",
+                  "default": "root"
+                },
+                "stage": {
+                  "type": "string",
+                  "enum": [
+                    "pre-commit",
+                    "commit-msg",
+                    "pre-push"
+                  ],
+                  "description": "Which git hook runs the scripts.",
+                  "default": "pre-commit"
+                },
+                "passStagedFiles": {
+                  "type": "boolean",
+                  "description": "Append staged files as arguments (npm run lint -- a.ts b.ts).",
+                  "default": false
+                },
+                "fileExtensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Staged files that make scripts relevant."
+                },
+                "alwaysRun": {
+                  "type": "boolean",
+                  "description": "Run even if no staged file matches fileExtensions.",
+                  "default": false
+                },
+                "timeoutSec": {
+                  "type": "number",
+                  "minimum": 1,
+                  "default": 300
+                }
+              }
+            },
+            "lintStaged": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Run lint-staged.",
+              "properties": {
+                "enabled": {
+                  "oneOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "auto"
+                    }
+                  ],
+                  "description": "`auto` runs only when a lint-staged config exists.",
+                  "default": "auto"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports."
+                },
+                "timeoutSec": {
+                  "type": "number",
+                  "minimum": 1,
+                  "default": 300
+                }
+              }
+            },
+            "biome": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Run Biome (https://biomejs.dev) on staged files.",
+              "properties": {
+                "enabled": {
+                  "oneOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "auto"
+                    }
+                  ],
+                  "description": "`auto` runs when biome.json(c) or @biomejs/biome is present and no package.json script already runs biome.",
+                  "default": "auto"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports."
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "check",
+                    "lint",
+                    "format"
+                  ],
+                  "default": "check",
+                  "description": "`check` = lint + format + organise imports."
+                },
+                "applyFixes": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Run with --write and re-stage fully-staged files."
+                },
+                "extraArgs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Extra CLI arguments, e.g. [\"--diagnostic-level=error\"]."
+                },
+                "timeoutSec": {
+                  "type": "number",
+                  "minimum": 1,
+                  "default": 300
+                }
+              }
+            },
+            "secrets": {
+              "type": "object",
+              "description": "Detect API keys, tokens, private keys and hard-coded credentials in added lines.",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": true
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "error"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                },
+                "extraPatterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "pattern"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "pattern": {
+                        "type": "string",
+                        "description": "JavaScript regular expression."
+                      },
+                      "flags": {
+                        "type": "string",
+                        "description": "RegExp flags, e.g. \"i\"."
+                      },
+                      "glob": {
+                        "oneOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        ],
+                        "description": "Only apply to matching files."
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "description": "Additional secret patterns."
+                },
+                "allowlist": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Regexes; matching lines are ignored. Inline: add `precommit-guard-ignore` or `pragma: allowlist secret` to a line."
+                }
+              }
+            },
+            "conflictMarkers": {
+              "type": "object",
+              "description": "Block unresolved merge conflict markers.",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": true
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "error"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                }
+              }
+            },
+            "debugStatements": {
+              "type": "object",
+              "description": "Find console.log, debugger, .only tests, pdb, binding.pry…",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": true
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "warning"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                },
+                "patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "pattern"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "pattern": {
+                        "type": "string",
+                        "description": "JavaScript regular expression."
+                      },
+                      "flags": {
+                        "type": "string",
+                        "description": "RegExp flags, e.g. \"i\"."
+                      },
+                      "glob": {
+                        "oneOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        ],
+                        "description": "Only apply to matching files."
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "description": "Replaces the default patterns."
+                }
+              }
+            },
+            "todoComments": {
+              "type": "object",
+              "description": "Report newly added TODO/FIXME comments.",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": false
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "warning"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                },
+                "keywords": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": [
+                    "TODO",
+                    "FIXME",
+                    "XXX",
+                    "HACK"
+                  ]
+                }
+              }
+            },
+            "trailingWhitespace": {
+              "type": "object",
+              "description": "Trailing spaces/tabs on added lines (auto-fixable).",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": false
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "warning"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                }
+              }
+            },
+            "eofNewline": {
+              "type": "object",
+              "description": "Files must end with a newline (auto-fixable).",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": false
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "warning"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                }
+              }
+            },
+            "jsonSyntax": {
+              "type": "object",
+              "description": "Staged .json files must parse.",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": true
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "error"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                }
+              }
+            },
+            "largeFiles": {
+              "type": "object",
+              "description": "Block files over a size limit.",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": true
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "error"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                },
+                "maxSizeKB": {
+                  "type": "number",
+                  "minimum": 1,
+                  "default": 1024
+                }
+              }
+            },
+            "forbiddenFiles": {
+              "type": "object",
+              "description": "Block files that should never be committed (.env, keys…).",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": true
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "error"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                },
+                "patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Glob patterns; prefix with ! to allow (e.g. \"!.env.example\")."
+                }
+              }
+            },
+            "protectedBranches": {
+              "type": "object",
+              "description": "Warn/block when committing directly to protected branches.",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": true
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "warning"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                },
+                "branches": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Branch names or globs (release/*).",
+                  "default": [
+                    "main",
+                    "master"
+                  ]
+                }
+              }
+            },
+            "branchName": {
+              "type": "object",
+              "description": "Branch names must match a pattern.",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": false
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "warning"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                },
+                "pattern": {
+                  "type": "string",
+                  "description": "RegExp."
+                },
+                "ignore": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Exempt branches."
+                }
+              }
+            },
+            "commitMessage": {
+              "type": "object",
+              "description": "Validate the commit message (commit-msg hook).",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Turn this check on or off.",
+                  "default": false
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports.",
+                  "default": "error"
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs (relative to repo root) this check ignores, on top of the global `exclude`."
+                },
+                "preset": {
+                  "type": "string",
+                  "enum": [
+                    "conventional",
+                    "none"
+                  ],
+                  "default": "conventional",
+                  "description": "`conventional` = Conventional Commits."
+                },
+                "pattern": {
+                  "type": "string",
+                  "description": "Extra RegExp the whole message must match (multiline)."
+                },
+                "types": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Allowed Conventional Commit types."
+                },
+                "minLength": {
+                  "type": "number",
+                  "default": 10
+                },
+                "maxSubjectLength": {
+                  "type": "number",
+                  "default": 72
+                },
+                "requireTicket": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Require a ticket reference such as ABC-123."
+                },
+                "ticketPattern": {
+                  "type": "string",
+                  "default": "[A-Z][A-Z0-9]+-\\d+"
+                },
+                "blankLineAfterSubject": {
+                  "type": "boolean",
+                  "default": true
+                }
+              }
+            }
+          },
+          "order": 9,
+          "markdownDescription": "Built-in checks. Edit in settings.json, e.g. `\"precommitGuard.checks\": { \"todoComments\": { \"enabled\": true } }`. Values in `.precommitrc.json` take precedence.",
+          "default": {},
+          "scope": "resource"
+        },
+        "precommitGuard.custom": {
+          "type": "array",
+          "description": "Your own checks: any shell command. Placeholders: {files} (matching staged files), {root}, {branch}, {msgFile}, {stagedCount}.",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Stable id (used by SKIP=). Defaults to a slug of the name."
+              },
+              "name": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string",
+                "description": "Shell command, e.g. \"npx eslint --max-warnings 0 {files}\"."
+              },
+              "glob": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ],
+                "description": "Only run when staged files match; {files} is filtered to these."
+              },
+              "stage": {
+                "type": "string",
+                "enum": [
+                  "pre-commit",
+                  "commit-msg",
+                  "pre-push"
+                ],
+                "default": "pre-commit"
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "error",
+                  "warning"
+                ],
+                "description": "`error` blocks the commit, `warning` only reports.",
+                "default": "error"
+              },
+              "enabled": {
+                "type": "boolean",
+                "default": true
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Working directory relative to repo root."
+              },
+              "timeoutSec": {
+                "type": "number",
+                "minimum": 1,
+                "default": 300
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "alwaysRun": {
+                "type": "boolean",
+                "description": "Run even when no staged file matches."
+              },
+              "restage": {
+                "type": "boolean",
+                "description": "Re-stage files changed by this command (formatters with --write/--fix)."
+              }
+            }
+          },
+          "default": [],
+          "order": 10,
+          "markdownDescription": "Custom command checks. Example: `{ \"name\": \"Prettier\", \"command\": \"npx prettier --check {files}\", \"glob\": \"**/*.{ts,tsx}\" }`",
+          "scope": "resource"
+        },
+        "precommitGuard.autoInstallHooks": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "enumDescriptions": [
+            "Ask once per repository",
+            "Install silently",
+            "Never install automatically"
+          ],
+          "default": "prompt",
+          "description": "Install git hooks automatically when a repository is opened.",
+          "order": 11
+        },
+        "precommitGuard.notifyOn": {
+          "type": "string",
+          "enum": [
+            "failure",
+            "all",
+            "never"
+          ],
+          "default": "failure",
+          "description": "When to show a notification after a git hook runs.",
+          "order": 12
+        },
+        "precommitGuard.showDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show findings in the Problems panel.",
+          "order": 13
+        },
+        "precommitGuard.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the status bar item.",
+          "order": 14
+        },
+        "precommitGuard.showDisabledChecks": {
+          "type": "boolean",
+          "default": true,
+          "description": "List disabled checks in the Pre-Commit Guard view so they can be enabled with one click.",
+          "order": 15
+        },
+        "precommitGuard.configTarget": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "settings",
+            "file"
+          ],
+          "default": "auto",
+          "enumDescriptions": [
+            ".precommitrc.json if it exists, otherwise workspace settings",
+            "Always workspace settings",
+            "Always .precommitrc.json"
+          ],
+          "description": "Where changes made from the UI (toggle, add check, preset) are saved.",
+          "order": 16
+        }
+      }
+    }
+  },
+  "scripts": {
+    "schema": "node scripts/schema.js",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit -p .",
+    "build": "npm run schema && node scripts/build.js",
+    "watch": "node scripts/build.js --watch",
+    "vscode:prepublish": "npm run schema && node scripts/build.js --production",
+    "pretest": "npm run build && tsc -p .",
+    "test": "node --test --test-concurrency=1 out/test/core.test.js out/test/e2e.test.js && node test/smoke.js",
+    "package": "vsce package --no-dependencies --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^20.19.43",
+    "@types/vscode": "1.85",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "5.6"
+  }
+}

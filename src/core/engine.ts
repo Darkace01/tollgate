@@ -40,9 +40,9 @@ const idMatches = (id: string, list: string[]) =>
 export async function collectChecks(config: GuardConfig, root: string, stage: Stage, getFiles: () => Promise<string[]>): Promise<CheckDef[]> {
   const defs = [
     ...builtinChecks(config).filter((d) => d.stage === stage),
-    ...lintStagedCheck(config, root, stage),
-    ...biomeCheck(config, root, stage),
-    ...prettierCheck(config, root, stage),
+    ...(await lintStagedCheck(config, root, stage)),
+    ...(await biomeCheck(config, root, stage)),
+    ...(await prettierCheck(config, root, stage)),
     ...(await dotnetChecks(config, root, stage)),
     ...(await npmScriptChecks(config, root, stage, getFiles)),
     ...customChecks(config, root, stage),

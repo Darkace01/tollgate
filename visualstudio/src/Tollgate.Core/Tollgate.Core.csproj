@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     Editor-independent client for the Tollgate runner (models, process execution, report watching).
-    netstandard2.0 is what Visual Studio (.NET Framework 4.8) consumes; net8.0 is for the cross-platform tests.
+    netstandard2.0 is what Visual Studio (.NET Framework 4.8) consumes; net10.0 is for the cross-platform tests.
     No NuGet dependencies on purpose: JSON uses System.Runtime.Serialization.
   -->
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>
     <LangVersion>10.0</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>Tollgate.Core</RootNamespace>

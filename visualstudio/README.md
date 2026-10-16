@@ -8,7 +8,7 @@ The user-facing description is in [`src/Tollgate.VisualStudio/overview.md`](src/
 
 | Path | What it is |
 | --- | --- |
-| `src/Tollgate.Core` | netstandard2.0 / net8.0 library with no dependencies: finds the repo and Node.js, calls the runner (`node runner.js … --json`), parses reports, and watches `.git/tollgate/last-*.json`. |
+| `src/Tollgate.Core` | netstandard2.0 / net10.0 library with no dependencies: finds the repo and Node.js, calls the runner (`node runner.js … --json`), parses reports, and watches `.git/tollgate/last-*.json`. |
 | `src/Tollgate.VisualStudio` | The VSIX: package, Tools › Tollgate commands, the Tollgate tool window, Error List integration and Tools › Options › Tollgate. Built on the [Community Visual Studio Toolkit](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit). |
 | `tests/Tollgate.Core.Tests` | A small test program that runs `Tollgate.Core` against the real runner. |
 

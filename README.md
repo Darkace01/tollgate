@@ -182,7 +182,10 @@ Skip it for one commit with `SKIP=dotnet git commit …`, or only the build with
 
 - **Existing git hooks** are kept and run before Tollgate's checks.
 - **Husky / `core.hooksPath`:** run **Tollgate: Integrate with Husky** to add a one-line call to your Husky hooks. That line does nothing for teammates who don't have Tollgate, so it's safe to commit.
-- **Monorepos:** set `"npmScripts": { "scope": "affected" }` to run scripts only in the packages your staged files belong to.
+- **Monorepos:** nothing has to live at the repo root. Each check runs from the folder that owns the staged file:
+  - **package.json scripts** run in the nearest package that has them when the root package.json is missing or has none of the configured scripts. Set `"npmScripts": { "scope": "affected" }` to always do that.
+  - **Biome, Prettier and lint-staged** run from the nearest folder with their config file or dependency, using that package's `node_modules` and package manager.
+  - **.NET** builds the solution (in the project's folder or any parent) that includes each changed project, or the project itself, and runs `dotnet` from that folder so a nested `global.json` or tool manifest applies. CSharpier runs from the folder that has its tool manifest or `.csharpierrc`. Set `dotnet.target` to pin a single solution or project.
 
 ## Using it without VS Code
 

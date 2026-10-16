@@ -115,6 +115,18 @@ export class Repo implements vscode.Disposable {
     w.onDidCreate(reload);
     w.onDidDelete(reload);
     this.watchers.push(w);
+    // Monorepos: tool configs in sub-folders change which checks apply (Biome, Prettier, lint-staged, .NET).
+    const nested = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(
+        vscode.Uri.file(this.root),
+        '**/{biome.json,biome.jsonc,.prettierrc*,prettier.config.*,.lintstagedrc*,lint-staged.config.*,*.sln,*.slnx,*.csproj,*.vbproj,*.fsproj,.csharpierrc*,dotnet-tools.json}',
+      ),
+    );
+    const refresh = () => this.fire();
+    nested.onDidCreate(refresh);
+    nested.onDidDelete(refresh);
+    nested.onDidChange(refresh);
+    this.watchers.push(nested);
   }
 
   private async reloadReport(stage: Stage): Promise<void> {

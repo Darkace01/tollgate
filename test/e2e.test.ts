@@ -267,3 +267,101 @@ test('.NET: dotnet format + build block a broken C# commit; applyFixes formats a
   assert.match(r.out, /dotnet build\s+Built Lib\.csproj/);
   assert.match(git('show', 'HEAD:src/Lib/Greeter.cs').out, /\n {8}var message = "Hello " \+ name;\n/);
 });
+
+function freshRepo(prefix: string, branch: string) {
+  repo = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  git('init', '-q', '-b', branch);
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 'Test');
+  git('config', 'commit.gpgsign', 'false');
+}
+
+test('monorepo without a root package.json: package scripts and Biome run from the owning package', () => {
+  freshRepo('tg-mono-js-', 'feature/mono');
+  // apps/api: a lint script that fails on "var ". apps/web: Biome, installed in that package only.
+  write('apps/api/package.json', JSON.stringify({ name: 'api', scripts: { lint: 'node lint.js' } }));
+  write(
+    'apps/api/lint.js',
+    `const fs=require('fs');let bad=0;for(const f of fs.readdirSync('src')){const t=fs.readFileSync('src/'+f,'utf8');t.split('\\n').forEach((l,i)=>{if(l.includes('var ')){console.log('src/'+f+':'+(i+1)+':1: no-var Unexpected var');bad++;}});}process.exit(bad?1:0);\n`,
+  );
+  write('apps/api/src/ok.js', 'const a = 1;\n');
+  write('README.md', '# mono\n');
+  git('add', '.');
+  assert.equal(sh('node', [CLI, 'install']).code, 0);
+  let r = commit('chore: initial');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /apps\/api › lint/);
+
+  write('apps/api/src/bad.js', 'var x = 1;\n');
+  git('add', '.');
+  r = commit('feat: bad api');
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /apps\/api › lint/);
+  assert.match(r.out, /apps\/api\/src\/bad\.js:1:1/);
+  write('apps/api/src/bad.js', 'const x = 1;\n');
+  git('add', '.');
+  assert.equal(commit('feat: good api').code, 0);
+
+  const biomePkg = path.resolve(__dirname, '..', '..', 'node_modules', '@biomejs');
+  if (!fs.existsSync(biomePkg) || process.platform === 'win32') return; // uses file symlinks
+  const web = path.join(repo, 'apps', 'web');
+  fs.mkdirSync(path.join(web, 'node_modules', '.bin'), { recursive: true });
+  fs.symlinkSync(biomePkg, path.join(web, 'node_modules', '@biomejs'));
+  fs.symlinkSync(path.join(biomePkg, 'biome', 'bin', 'biome'), path.join(web, 'node_modules', '.bin', 'biome'));
+  write('.gitignore', 'node_modules\n');
+  write('apps/web/package.json', JSON.stringify({ name: 'web', devDependencies: { '@biomejs/biome': '1.9.4' } }));
+  write('apps/web/biome.json', JSON.stringify({ linter: { enabled: true, rules: { recommended: true } }, formatter: { enabled: false } }));
+  write('apps/web/src/a.ts', 'export function f(a: any) {\n  return a == null;\n}\n');
+  // Outside apps/web: not Biome's business.
+  write('scripts/tool.ts', 'export function g(a: any) {\n  return a == null;\n}\n');
+  git('add', '.');
+  r = commit('feat: add web');
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /Biome check/);
+  assert.match(r.out, /apps\/web\/src\/a\.ts:1:\d+/);
+  assert.doesNotMatch(r.out, /scripts\/tool\.ts:\d+/);
+  write('apps/web/src/a.ts', 'export function f(a: string | null) {\n  return a === null;\n}\n');
+  git('add', '.');
+  r = commit('feat: add web');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /Biome check\s+\d+ file\(s\) clean in apps\/web/);
+});
+
+test('monorepo .NET: a solution in a sub-folder is built from its own folder', () => {
+  const v = spawnSync('dotnet', ['--version'], { encoding: 'utf8', env: { ...process.env, DOTNET_NOLOGO: '1', DOTNET_CLI_TELEMETRY_OPTOUT: '1' } });
+  if (v.status !== 0) return; // no .NET SDK on this machine
+  const tfm = `net${v.stdout.trim().split('.')[0] ?? '8'}.0`;
+  freshRepo('tg-mono-dn-', 'feature/mono-dotnet');
+  write('frontend/package.json', JSON.stringify({ name: 'fe' }));
+  write('backend/nuget.config', '<?xml version="1.0" encoding="utf-8"?>\n<configuration><packageSources><clear /></packageSources></configuration>\n');
+  write('.gitignore', 'bin/\nobj/\n');
+  write(
+    'backend/src/Lib/Lib.csproj',
+    `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>${tfm}</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup></Project>\n`,
+  );
+  // A classic .sln (readable by every SDK) in the backend folder, nothing at the root.
+  write(
+    'backend/Backend.sln',
+    'Microsoft Visual Studio Solution File, Format Version 12.00\nProject("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lib", "src\\Lib\\Lib.csproj", "{11111111-1111-1111-1111-111111111111}"\nEndProject\nGlobal\n\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\n\t\tDebug|Any CPU = Debug|Any CPU\n\t\tRelease|Any CPU = Release|Any CPU\n\tEndGlobalSection\n\tGlobalSection(ProjectConfigurationPlatforms) = postSolution\n\t\t{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.Build.0 = Debug|Any CPU\n\t\t{11111111-1111-1111-1111-111111111111}.Release|Any CPU.ActiveCfg = Release|Any CPU\n\t\t{11111111-1111-1111-1111-111111111111}.Release|Any CPU.Build.0 = Release|Any CPU\n\tEndGlobalSection\nEndGlobal\n',
+  );
+  write(
+    'backend/src/Lib/Greeter.cs',
+    'namespace Lib;\n\npublic class Greeter\n{\n    public string Greet(string name)\n    {\n        return mesage;\n    }\n}\n',
+  );
+  write('.tollgaterc.json', JSON.stringify({ checks: { dotnet: { format: { enabled: false } } } }));
+  git('add', '.');
+  assert.equal(sh('node', [CLI, 'install']).code, 0);
+
+  let r = commit('feat: add greeter');
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /dotnet build/);
+  assert.match(r.out, /backend\/src\/Lib\/Greeter\.cs:7:16\s+The name 'mesage' does not exist/);
+  write(
+    'backend/src/Lib/Greeter.cs',
+    'namespace Lib;\n\npublic class Greeter\n{\n    public string Greet(string name)\n    {\n        return "Hello " + name;\n    }\n}\n',
+  );
+  git('add', '.');
+  r = commit('feat: add greeter');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /dotnet build\s+Built Backend\.sln/);
+});

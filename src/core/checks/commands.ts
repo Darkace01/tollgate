@@ -4,7 +4,8 @@ import { runShell, shellQuote } from '../exec';
 import { stageFiles, unstagedFiles } from '../git';
 import { matchesAny, normalizePath } from '../glob';
 import type { CustomCheck, Finding, GuardConfig, PackageManager, Severity, Stage } from '../types';
-import { CheckContext, type CheckDef, type CheckOutcome, isExcluded } from './context';
+import { type CheckDef, type CheckOutcome, isExcluded } from './context';
+import { absDir, findOwnerDir, groupByOwnerDir, hasDependency, readPackageJson, relativeTo, trackedDirsWith } from './workspace';
 
 // ---------------------------------------------------------------- package manager
 
@@ -156,39 +157,74 @@ export function commandOutcome(res: Awaited<ReturnType<typeof runShell>>, comman
   };
 }
 
+// ---------------------------------------------------------------- monorepo tool folders
+
+/**
+ * Where a tool is set up. In a monorepo the repo root often has no package.json / tool config at all;
+ * each tool is then run from the folder that owns the staged file (nearest folder with the config or
+ * the dependency), so its own config, node_modules and package manager are used.
+ */
+interface ToolSpec {
+  /** Basenames worth looking at when scanning tracked files. */
+  candidates: string[];
+  /** Is this (absolute) folder set up for the tool? */
+  isDir: (abs: string) => boolean;
+}
+
+/** Repo-relative folders ('' = root) set up for the tool, root first. */
+async function toolDirs(root: string, spec: ToolSpec): Promise<string[]> {
+  const dirs = new Set(await trackedDirsWith(root, (base) => spec.candidates.includes(base)));
+  dirs.add('');
+  return [...dirs].filter((d) => spec.isDir(absDir(root, d))).sort();
+}
+
+const exists = (dir: string, files: string[]) => files.some((f) => fs.existsSync(path.join(dir, f)));
+
 // ---------------------------------------------------------------- package.json scripts
 
 function readScripts(dir: string): Record<string, string> {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).scripts ?? {};
-  } catch {
-    return {};
-  }
+  const scripts = readPackageJson(dir)?.scripts;
+  return scripts && typeof scripts === 'object' ? (scripts as Record<string, string>) : {};
 }
 
 function nearestPackageDir(root: string, file: string): string | undefined {
-  let d = path.dirname(path.join(root, file));
-  const top = path.resolve(root);
-  for (;;) {
-    if (fs.existsSync(path.join(d, 'package.json'))) return d;
-    if (path.resolve(d) === top || path.dirname(d) === d) return undefined;
-    d = path.dirname(d);
-  }
+  const rel = findOwnerDir(root, file, (abs) => fs.existsSync(path.join(abs, 'package.json')));
+  return rel === undefined ? undefined : absDir(root, rel);
+}
+
+/**
+ * `root` scope only makes sense when the root package.json has one of the configured scripts. When it
+ * doesn't (no root package.json, or a workspace root without lint/typecheck scripts), fall back to the
+ * packages that own the staged files.
+ */
+export function effectiveNpmScope(cfg: GuardConfig, root: string): 'root' | 'affected' {
+  const c = cfg.checks.npmScripts;
+  if (c.scope === 'affected') return 'affected';
+  const scripts = readScripts(root);
+  return c.scripts.some((s) => scripts[s]) ? 'root' : 'affected';
 }
 
 /** Build one check per matching script, per package directory. */
 export async function npmScriptChecks(cfg: GuardConfig, root: string, stage: Stage, getFiles: () => Promise<string[]>): Promise<CheckDef[]> {
   const c = cfg.checks.npmScripts;
   if (!c.enabled || c.stage !== stage) return [];
+  const hasScript = (dir: string) => {
+    const s = readScripts(dir);
+    return c.scripts.some((n) => s[n]);
+  };
   let dirs: string[] = [];
-  if (c.scope === 'affected' && stage === 'pre-commit') {
+  if (effectiveNpmScope(cfg, root) === 'root') dirs = [root];
+  else if (stage === 'pre-commit') {
     const set = new Set<string>();
     for (const f of await getFiles()) {
       const d = nearestPackageDir(root, f);
       if (d) set.add(d);
     }
-    dirs = [...set];
-  } else if (fs.existsSync(path.join(root, 'package.json'))) dirs = [root];
+    dirs = [...set].sort();
+  } else {
+    // pre-push / commit-msg: no staged files to go by — every package that has one of the scripts.
+    dirs = (await trackedDirsWith(root, (base) => base === 'package.json')).map((d) => absDir(root, d)).filter(hasScript);
+  }
 
   const defs: CheckDef[] = [];
   for (const dir of dirs) {
@@ -229,6 +265,52 @@ export async function npmScriptChecks(cfg: GuardConfig, root: string, stage: Sta
   return defs;
 }
 
+/**
+ * True when the package.json scripts check will already run `tool` for files in `dir` (so the
+ * dedicated check would run it twice).
+ */
+function scriptsRunTool(cfg: GuardConfig, root: string, dir: string, tool: string): boolean {
+  const c = cfg.checks.npmScripts;
+  if (!c.enabled || c.stage !== 'pre-commit') return false;
+  const scope = effectiveNpmScope(cfg, root);
+  if (dir && scope === 'root') return false;
+  const scripts = readScripts(absDir(root, dir));
+  return c.scripts.some((s) => new RegExp(`\\b${tool}\\b`).test(scripts[s] ?? ''));
+}
+
+/** Run one tool command per owning folder and file chunk, merging the results. */
+async function runPerFolder(
+  root: string,
+  groups: Map<string, string[]>,
+  build: (dir: string, chunk: string[]) => string,
+  opts: { timeoutSec: number; signal?: AbortSignal; stopOnFailure?: boolean },
+): Promise<{ output: string; findings: Finding[]; failed?: CheckOutcome; last?: CheckOutcome }> {
+  let output = '';
+  const findings: Finding[] = [];
+  let failed: CheckOutcome | undefined;
+  let last: CheckOutcome | undefined;
+  const multi = groups.size > 1;
+  for (const [dir, files] of groups) {
+    const cwd = absDir(root, dir);
+    const rel = files.map((f) => relativeTo(dir, f));
+    for (const chunk of rel.length ? chunkArgs(rel) : [[]]) {
+      const command = build(dir, chunk);
+      const res = await runShell(command, { cwd, timeoutMs: opts.timeoutSec * 1000, signal: opts.signal });
+      output += `${multi ? `── ${dir || '(root)'}\n` : ''}${res.output}`;
+      last = commandOutcome(res, command, cwd, root, opts.timeoutSec);
+      if (last.status !== 'passed') {
+        findings.push(...(last.findings ?? []));
+        failed ??= last;
+        if (opts.stopOnFailure || last.status === 'skipped') return { output, findings, failed, last };
+      }
+    }
+  }
+  return { output, findings, failed, last };
+}
+
+const folderNote = (groups: Map<string, string[]>) =>
+  groups.size > 1 || (groups.size === 1 && !groups.has('')) ? ` in ${[...groups.keys()].map((d) => d || '(root)').join(', ')}` : '';
+
 // ---------------------------------------------------------------- lint-staged
 
 const LINT_STAGED_FILES = [
@@ -245,19 +327,18 @@ const LINT_STAGED_FILES = [
   'lint-staged.config.ts',
 ];
 
-export function hasLintStagedConfig(root: string): boolean {
-  if (LINT_STAGED_FILES.some((f) => fs.existsSync(path.join(root, f)))) return true;
-  try {
-    return !!JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))['lint-staged'];
-  } catch {
-    return false;
-  }
+/** lint-staged config in this folder (a config file, or package.json#lint-staged). */
+export function hasLintStagedConfig(dir: string): boolean {
+  return exists(dir, LINT_STAGED_FILES) || !!readPackageJson(dir)?.['lint-staged'];
 }
 
-export function lintStagedCheck(cfg: GuardConfig, root: string, stage: Stage): CheckDef[] {
+const LINT_STAGED: ToolSpec = { candidates: [...LINT_STAGED_FILES, 'package.json'], isDir: hasLintStagedConfig };
+
+export async function lintStagedCheck(cfg: GuardConfig, root: string, stage: Stage): Promise<CheckDef[]> {
   const c = cfg.checks.lintStaged;
   if (stage !== 'pre-commit' || c.enabled === false) return [];
-  if (c.enabled === 'auto' && !hasLintStagedConfig(root)) return [];
+  const rootConfig = hasLintStagedConfig(root);
+  if (c.enabled === 'auto' && !rootConfig && !(await toolDirs(root, LINT_STAGED)).length) return [];
   return [
     {
       id: 'lintStaged',
@@ -267,9 +348,36 @@ export function lintStagedCheck(cfg: GuardConfig, root: string, stage: Stage): C
       kind: 'command',
       run: async (ctx) => {
         if (ctx.mode !== 'staged') return { status: 'skipped', summary: 'Only runs on staged changes' };
-        const command = execBin(detectPackageManager(root, root, cfg.packageManager), 'lint-staged');
-        const res = await runShell(command, { cwd: root, timeoutMs: c.timeoutSec * 1000, signal: ctx.signal });
-        return commandOutcome(res, command, root, root, c.timeoutSec);
+        // A root config: one run from the root (lint-staged finds nested configs itself).
+        // Otherwise: one run per package that has a config and owns staged files.
+        let dirs: string[];
+        if (rootConfig || c.enabled === true) dirs = [''];
+        else {
+          const groups = groupByOwnerDir(root, (await ctx.fileSet()).files, hasLintStagedConfig);
+          dirs = [...groups.keys()];
+          if (!dirs.length) return { status: 'skipped', summary: 'No staged files under a lint-staged config' };
+        }
+        let output = '';
+        let failed: CheckOutcome | undefined;
+        const findings: Finding[] = [];
+        const commands: string[] = [];
+        for (const dir of dirs) {
+          const cwd = absDir(root, dir);
+          const command = execBin(detectPackageManager(cwd, root, cfg.packageManager), 'lint-staged');
+          commands.push(dir ? `(cd ${dir} && ${command})` : command);
+          const res = await runShell(command, { cwd, timeoutMs: c.timeoutSec * 1000, signal: ctx.signal });
+          output += `${dirs.length > 1 ? `── ${dir || '(root)'}\n` : ''}${res.output}`;
+          const o = commandOutcome(res, command, cwd, root, c.timeoutSec);
+          if (o.status !== 'passed') {
+            findings.push(...(o.findings ?? []));
+            failed ??= o;
+            break;
+          }
+        }
+        const command = commands.length > 1 ? `${commands[0]} (+${commands.length - 1} more)` : commands[0];
+        if (failed) return { ...failed, command, output, findings };
+        const where = dirs.length === 1 && !dirs[0] ? '' : ` in ${dirs.map((d) => d || '(root)').join(', ')}`;
+        return { status: 'passed', summary: `Passed${where}`, command, output, findings: [] };
       },
     },
   ];
@@ -278,28 +386,22 @@ export function lintStagedCheck(cfg: GuardConfig, root: string, stage: Stage): C
 // ---------------------------------------------------------------- Biome
 
 const BIOME_EXTENSIONS = /\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|json|jsonc|css|graphql|gql|astro|vue|svelte)$/i;
+const BIOME_CONFIGS = ['biome.json', 'biome.jsonc'];
 
-export function hasBiome(root: string): boolean {
-  if (fs.existsSync(path.join(root, 'biome.json')) || fs.existsSync(path.join(root, 'biome.jsonc'))) return true;
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    return !!(pkg.devDependencies?.['@biomejs/biome'] ?? pkg.dependencies?.['@biomejs/biome']);
-  } catch {
-    return false;
-  }
+/** This folder has a biome.json(c) or a package.json depending on @biomejs/biome. */
+export function hasBiome(dir: string): boolean {
+  return exists(dir, BIOME_CONFIGS) || hasDependency(readPackageJson(dir), '@biomejs/biome');
 }
 
-/** True when one of the configured package.json scripts already invokes biome (avoid running it twice). */
-function scriptsRunTool(cfg: GuardConfig, root: string, tool: string): boolean {
-  if (!cfg.checks.npmScripts.enabled) return false;
-  const scripts = readScripts(root);
-  return cfg.checks.npmScripts.scripts.some((s) => new RegExp(`\\b${tool}\\b`).test(scripts[s] ?? ''));
-}
+const BIOME: ToolSpec = { candidates: [...BIOME_CONFIGS, 'package.json'], isDir: hasBiome };
 
-export function biomeCheck(cfg: GuardConfig, root: string, stage: Stage): CheckDef[] {
+export async function biomeCheck(cfg: GuardConfig, root: string, stage: Stage): Promise<CheckDef[]> {
   const c = cfg.checks.biome;
   if (stage !== 'pre-commit' || c.enabled === false) return [];
-  if (c.enabled === 'auto' && (!hasBiome(root) || scriptsRunTool(cfg, root, 'biome'))) return [];
+  if (c.enabled === 'auto') {
+    const dirs = await toolDirs(root, BIOME);
+    if (!dirs.length || dirs.every((d) => scriptsRunTool(cfg, root, d, 'biome'))) return [];
+  }
   return [
     {
       id: 'biome',
@@ -310,32 +412,29 @@ export function biomeCheck(cfg: GuardConfig, root: string, stage: Stage): CheckD
       run: async (ctx) => {
         const files = (await ctx.fileSet()).files.filter((f) => BIOME_EXTENSIONS.test(f) && !isExcluded(ctx, f));
         if (!files.length) return { status: 'skipped', summary: 'No staged files Biome can check' };
+        // Each file is checked from the nearest folder set up for Biome (the root when nothing nearer is).
+        const groups = groupByOwnerDir(root, files, (abs, rel) => !rel || hasBiome(abs));
+        if (c.enabled === 'auto') for (const d of [...groups.keys()]) if (scriptsRunTool(cfg, root, d, 'biome') || !hasBiome(absDir(root, d))) groups.delete(d);
+        const checked = [...groups.values()].flat();
+        if (!checked.length) return { status: 'skipped', summary: 'No staged files under a Biome config' };
         const fix = c.applyFixes && ctx.mode === 'staged' ? ' --write' : '';
-        const base = `${execBin(detectPackageManager(root, root, cfg.packageManager), 'biome')} ${c.mode} --no-errors-on-unmatched --files-ignore-unknown=true --colors=off${fix}${c.extraArgs.length ? ' ' + c.extraArgs.map(shellQuote).join(' ') : ''}`;
+        const extra = c.extraArgs.length ? ' ' + c.extraArgs.map(shellQuote).join(' ') : '';
+        const base = (dir: string) =>
+          `${execBin(detectPackageManager(absDir(root, dir), root, cfg.packageManager), 'biome')} ${c.mode} --no-errors-on-unmatched --files-ignore-unknown=true --colors=off${fix}${extra}`;
         const partial = fix ? new Set(await unstagedFiles(root)) : undefined;
-        let last: CheckOutcome | undefined;
-        let output = '';
-        const findings: Finding[] = [];
-        for (const chunk of chunkArgs(files)) {
-          const command = `${base} ${chunk.map(shellQuote).join(' ')}`;
-          const res = await runShell(command, { cwd: root, timeoutMs: c.timeoutSec * 1000, signal: ctx.signal });
-          output += res.output;
-          last = commandOutcome(res, command, root, root, c.timeoutSec);
-          findings.push(...(last.findings ?? []));
-          if (last.status !== 'passed') break;
-        }
-        if (partial && last?.status === 'passed')
+        const r = await runPerFolder(root, groups, (dir, chunk) => `${base(dir)} ${chunk.map(shellQuote).join(' ')}`, {
+          timeoutSec: c.timeoutSec,
+          signal: ctx.signal,
+          stopOnFailure: true,
+        });
+        if (partial && !r.failed)
           await stageFiles(
             root,
-            files.filter((f) => !partial.has(f)),
+            checked.filter((f) => !partial.has(f)),
           );
-        return {
-          ...last!,
-          command: base + ' <staged files>',
-          output,
-          findings: last!.status === 'passed' ? [] : findings,
-          summary: last!.status === 'passed' ? `${files.length} file(s) clean` : last!.summary,
-        };
+        const command = `${base([...groups.keys()][0])} <staged files>${folderNote(groups)}`;
+        if (r.failed) return { ...r.failed, command, output: r.output, findings: r.findings };
+        return { ...r.last!, command, output: r.output, findings: [], summary: `${checked.length} file(s) clean${folderNote(groups)}` };
       },
     },
   ];
@@ -365,45 +464,51 @@ const PRETTIER_CONFIGS = [
 ];
 
 /**
- * A Prettier config file always counts. The `prettier` dependency alone only counts when the project
+ * A Prettier config file always counts. The `prettier` dependency alone only counts when the folder
  * isn't set up for Biome (projects often keep prettier around for tooling while formatting with Biome).
  */
-export function hasPrettier(root: string): boolean {
-  if (PRETTIER_CONFIGS.some((f) => fs.existsSync(path.join(root, f)))) return true;
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    if (pkg.prettier) return true;
-    const dep = !!(pkg.devDependencies?.prettier || pkg.dependencies?.prettier);
-    const biomeConfigured = fs.existsSync(path.join(root, 'biome.json')) || fs.existsSync(path.join(root, 'biome.jsonc'));
-    return dep && !biomeConfigured;
-  } catch {
-    return false;
-  }
+export function hasPrettier(dir: string): boolean {
+  if (exists(dir, PRETTIER_CONFIGS)) return true;
+  const pkg = readPackageJson(dir);
+  if (!pkg) return false;
+  if (pkg.prettier) return true;
+  return hasDependency(pkg, 'prettier') && !exists(dir, BIOME_CONFIGS);
 }
 
-/** Parse `prettier --check` / `--write` output: "[warn] file" = unformatted, "[error] file: SyntaxError … (l:c)". */
-export function parsePrettierOutput(output: string, root: string): Finding[] {
+const PRETTIER: ToolSpec = { candidates: [...PRETTIER_CONFIGS, 'package.json'], isDir: hasPrettier };
+
+/**
+ * Parse `prettier --check` / `--write` output: "[warn] file" = unformatted, "[error] file: SyntaxError … (l:c)".
+ * Paths are relative to `cwd` (the folder Prettier ran in); findings are repo-relative.
+ */
+export function parsePrettierOutput(output: string, root: string, cwd: string = root): Finding[] {
   const findings: Finding[] = [];
+  const rel = (file: string) => {
+    const abs = path.resolve(cwd, file);
+    const r = normalizePath(path.relative(root, abs));
+    return !r.startsWith('..') && fs.existsSync(abs) ? r : undefined;
+  };
   for (const raw of output.split(/\r?\n/)) {
     const line = raw.trim();
     let m: RegExpExecArray | null;
     if ((m = /^\[error\] (.+?): (.*?)(?: \((\d+):(\d+)\))?$/.exec(line))) {
-      const file = normalizePath(m[1]);
-      if (fs.existsSync(path.join(root, file)))
-        findings.push({ file, line: m[3] ? +m[3] : 1, column: m[4] ? +m[4] : undefined, rule: 'syntax', message: m[2] });
+      const file = rel(m[1]);
+      if (file) findings.push({ file, line: m[3] ? +m[3] : 1, column: m[4] ? +m[4] : undefined, rule: 'syntax', message: m[2] });
     } else if ((m = /^\[warn\] (.+)$/.exec(line)) && !/\s(issues?|found|Run Prettier)\b/.test(m[1])) {
-      const file = normalizePath(m[1]);
-      if (fs.existsSync(path.join(root, file)))
-        findings.push({ file, line: 1, rule: 'prettier', message: 'File is not formatted with Prettier (run prettier --write)' });
+      const file = rel(m[1]);
+      if (file) findings.push({ file, line: 1, rule: 'prettier', message: 'File is not formatted with Prettier (run prettier --write)' });
     }
   }
   return findings;
 }
 
-export function prettierCheck(cfg: GuardConfig, root: string, stage: Stage): CheckDef[] {
+export async function prettierCheck(cfg: GuardConfig, root: string, stage: Stage): Promise<CheckDef[]> {
   const c = cfg.checks.prettier;
   if (stage !== 'pre-commit' || c.enabled === false) return [];
-  if (c.enabled === 'auto' && (!hasPrettier(root) || scriptsRunTool(cfg, root, 'prettier'))) return [];
+  if (c.enabled === 'auto') {
+    const dirs = await toolDirs(root, PRETTIER);
+    if (!dirs.length || dirs.every((d) => scriptsRunTool(cfg, root, d, 'prettier'))) return [];
+  }
   return [
     {
       id: 'prettier',
@@ -412,35 +517,44 @@ export function prettierCheck(cfg: GuardConfig, root: string, stage: Stage): Che
       severity: c.severity,
       kind: 'command',
       run: async (ctx) => {
-        const files = (await ctx.fileSet()).files.filter((f) => !isExcluded(ctx, f, c.exclude));
-        if (!files.length) return { status: 'skipped', summary: 'No staged files' };
-        const bin = execBin(detectPackageManager(root, root, cfg.packageManager), 'prettier');
+        const all = (await ctx.fileSet()).files.filter((f) => !isExcluded(ctx, f, c.exclude));
+        if (!all.length) return { status: 'skipped', summary: 'No staged files' };
+        // Each file is formatted from the nearest folder set up for Prettier (the root when nothing nearer is).
+        const groups = groupByOwnerDir(root, all, (abs, rel) => !rel || hasPrettier(abs));
+        if (c.enabled === 'auto')
+          for (const d of [...groups.keys()]) if (scriptsRunTool(cfg, root, d, 'prettier') || !hasPrettier(absDir(root, d))) groups.delete(d);
+        const files = [...groups.values()].flat();
+        if (!files.length) return { status: 'skipped', summary: 'No staged files under a Prettier config' };
+        const bin = (dir: string) => execBin(detectPackageManager(absDir(root, dir), root, cfg.packageManager), 'prettier');
         const extra = c.extraArgs.length ? ` ${c.extraArgs.map(shellQuote).join(' ')}` : '';
         // With applyFixes, fully-staged files are written + re-staged; partially-staged ones are only checked
         // (writing them would mix unstaged edits into the commit).
         const partial = c.applyFixes && ctx.mode === 'staged' ? new Set(await unstagedFiles(root)) : new Set<string>();
-        const toWrite = c.applyFixes && ctx.mode === 'staged' ? files.filter((f) => !partial.has(f)) : [];
-        const toCheck = files.filter((f) => !toWrite.includes(f));
+        const toWrite = new Set(c.applyFixes && ctx.mode === 'staged' ? files.filter((f) => !partial.has(f)) : []);
         let output = '';
         const findings: Finding[] = [];
         let failed: CheckOutcome | undefined;
-        for (const [mode, list] of [
-          ['--write', toWrite],
-          ['--check', toCheck],
+        for (const [mode, keep] of [
+          ['--write', (f: string) => toWrite.has(f)],
+          ['--check', (f: string) => !toWrite.has(f)],
         ] as const) {
-          for (const chunk of chunkArgs(list)) {
-            const command = `${bin} ${mode} --ignore-unknown --no-error-on-unmatched-pattern${extra} ${chunk.map(shellQuote).join(' ')}`;
-            const res = await runShell(command, { cwd: root, timeoutMs: c.timeoutSec * 1000, signal: ctx.signal });
-            output += res.output;
-            if (res.code !== 0 || res.timedOut || res.cancelled) {
-              const o = commandOutcome(res, command, root, root, c.timeoutSec);
-              findings.push(...parsePrettierOutput(res.output, root));
-              failed ??= o;
+          const sub = new Map([...groups].map(([d, fs]) => [d, fs.filter(keep)] as const).filter(([, fs]) => fs.length));
+          for (const [dir, list] of sub) {
+            const cwd = absDir(root, dir);
+            for (const chunk of chunkArgs(list.map((f) => relativeTo(dir, f)))) {
+              const command = `${bin(dir)} ${mode} --ignore-unknown --no-error-on-unmatched-pattern${extra} ${chunk.map(shellQuote).join(' ')}`;
+              const res = await runShell(command, { cwd, timeoutMs: c.timeoutSec * 1000, signal: ctx.signal });
+              output += `${groups.size > 1 ? `── ${dir || '(root)'}\n` : ''}${res.output}`;
+              if (res.code !== 0 || res.timedOut || res.cancelled) {
+                const o = commandOutcome(res, command, cwd, root, c.timeoutSec);
+                findings.push(...parsePrettierOutput(res.output, root, cwd));
+                failed ??= o;
+              }
             }
           }
         }
-        if (toWrite.length && !failed) await stageFiles(root, toWrite);
-        const command = `${bin} ${c.applyFixes ? '--write' : '--check'} --ignore-unknown <staged files>`;
+        if (toWrite.size && !failed) await stageFiles(root, [...toWrite]);
+        const command = `${bin([...groups.keys()][0])} ${c.applyFixes ? '--write' : '--check'} --ignore-unknown <staged files>${folderNote(groups)}`;
         if (failed) {
           const unformatted = findings.filter((f) => f.rule === 'prettier').length;
           const syntax = findings.filter((f) => f.rule === 'syntax').length;
@@ -449,10 +563,11 @@ export function prettierCheck(cfg: GuardConfig, root: string, stage: Stage): Che
             : failed.summary;
           return { ...failed, command, output, summary, findings };
         }
-        const partialNote = toCheck.length && c.applyFixes ? ` · ${toCheck.length} partially-staged file(s) checked only` : '';
+        const checkedOnly = files.length - toWrite.size;
+        const partialNote = checkedOnly && c.applyFixes ? ` · ${checkedOnly} partially-staged file(s) checked only` : '';
         return {
           status: 'passed',
-          summary: toWrite.length ? `Formatted & re-staged ${toWrite.length} file(s)${partialNote}` : `${files.length} file(s) formatted`,
+          summary: toWrite.size ? `Formatted & re-staged ${toWrite.size} file(s)${partialNote}` : `${files.length} file(s) formatted`,
           command,
           output,
           findings: [],

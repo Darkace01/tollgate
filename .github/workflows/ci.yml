@@ -42,7 +42,7 @@ jobs:
           cache: npm
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
       - run: git config --global user.email ci@example.com && git config --global user.name CI
       - run: npm ci
       - run: npm run build

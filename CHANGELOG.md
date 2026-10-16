@@ -2,6 +2,14 @@
 
 All notable changes to Tollgate are documented here.
 
+## [1.1.0]
+
+- **Monorepo support:** the root no longer needs a package.json, a solution or tool configs.
+  - package.json scripts fall back to the packages that own the staged files.
+  - Biome, Prettier, lint-staged and CSharpier are detected in sub-folders and run from the folder that owns each file.
+  - .NET checks build the solution that includes each changed project (in any parent folder), from that solution's folder.
+- The Visual Studio extension's core library and tests now target .NET 10 (`netstandard2.0;net10.0`), and CI uses the .NET 10 SDK.
+
 ## [1.0.0]
 
 First public release.

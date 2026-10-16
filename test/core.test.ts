@@ -313,3 +313,99 @@ test('toggleCheck / setConfigValue write .tollgaterc.json for every kind of chec
   assert.equal(merged.custom.find((c) => c.id === 'unit')?.enabled, false);
   assert.throws(() => toggleCheck(dir, cfg, 'nope', true), /Unknown check/);
 });
+
+test('monorepo: .NET targets in sub-folders resolve to the owning solution, else the project', async () => {
+  const { resolveDotnetTargets } = await import('../src/core/checks/dotnet');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tg-mono-dn-'));
+  const w = (f: string, c: string) => {
+    fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+    fs.writeFileSync(path.join(dir, f), c);
+  };
+  // backend/Acme.sln includes Api; Tools/Tool.csproj is not in any solution; web/ is a JS app.
+  w('backend/src/Api/Api.csproj', '<Project/>');
+  w('backend/src/Tools/Tool.csproj', '<Project/>');
+  w('backend/Acme.sln', 'Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Api", "src\\Api\\Api.csproj", "{A}"\nEndProject\n');
+  w('services/orders/Orders.slnx', '<Solution>\n  <Project Path="Orders.Api/Orders.Api.csproj" />\n</Solution>\n');
+  w('services/orders/Orders.Api/Orders.Api.csproj', '<Project/>');
+  const t = await resolveDotnetTargets(dir, baseDefaults(), [
+    'backend/src/Api/Controllers/Home.cs',
+    'backend/src/Api/Program.cs',
+    'backend/src/Tools/Run.cs',
+    'services/orders/Orders.Api/Order.cs',
+    'web/src/app.ts',
+  ]);
+  assert.deepEqual(
+    t.map((x) => [x.path, x.dir, x.files]),
+    [
+      ['backend/Acme.sln', 'backend', ['backend/src/Api/Controllers/Home.cs', 'backend/src/Api/Program.cs']],
+      ['backend/src/Tools/Tool.csproj', 'backend/src/Tools', ['backend/src/Tools/Run.cs']],
+      ['services/orders/Orders.slnx', 'services/orders', ['services/orders/Orders.Api/Order.cs']],
+    ],
+  );
+});
+
+test('monorepo: tool folders, npm script scope fallback and nested Biome/Prettier/lint-staged/CSharpier detection', async () => {
+  const { groupByOwnerDir, relativeTo, resetToolFileCache } = await import('../src/core/checks/workspace');
+  const { effectiveNpmScope, npmScriptChecks, biomeCheck, prettierCheck, lintStagedCheck, hasBiome } = await import('../src/core/checks/commands');
+  const { csharpierDirs, dotnetChecks } = await import('../src/core/checks/dotnet');
+  const { spawnSync } = await import('node:child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tg-mono-'));
+  const w = (f: string, c: string) => {
+    fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+    fs.writeFileSync(path.join(dir, f), c);
+  };
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  // No package.json, solution or tool config at the root.
+  w('apps/web/package.json', JSON.stringify({ scripts: { lint: 'eslint .' }, devDependencies: { '@biomejs/biome': '2.0.0' } }));
+  w('apps/web/src/a.ts', '');
+  w('apps/docs/.prettierrc', '{}');
+  w('apps/docs/package.json', JSON.stringify({ 'lint-staged': { '*.md': 'prettier --check' } }));
+  w('backend/.config/dotnet-tools.json', JSON.stringify({ tools: { csharpier: { version: '1.0.0' } } }));
+  w('backend/Api/Api.csproj', '<Project/>');
+  spawnSync('git', ['add', '.'], { cwd: dir });
+  resetToolFileCache();
+
+  const cfg = baseDefaults();
+  assert.equal(effectiveNpmScope(cfg, dir), 'affected', 'no root package.json → packages owning the staged files');
+  const staged = ['apps/web/src/a.ts', 'apps/docs/readme.md', 'backend/Api/A.cs'];
+  const npm = await npmScriptChecks(cfg, dir, 'pre-commit', async () => staged);
+  assert.deepEqual(
+    npm.map((d) => d.id),
+    ['npmScripts:apps/web:lint'],
+  );
+  assert.equal(effectiveNpmScope(deepMerge(cfg, { checks: { npmScripts: { scope: 'root' } } }), dir), 'affected');
+
+  assert.ok(!hasBiome(dir));
+  // web's lint script doesn't call biome, so the Biome check stays on.
+  assert.deepEqual(
+    (await biomeCheck(cfg, dir, 'pre-commit')).map((d) => d.id),
+    ['biome'],
+  );
+  assert.deepEqual(
+    (await prettierCheck(cfg, dir, 'pre-commit')).map((d) => d.id),
+    ['prettier'],
+  );
+  assert.deepEqual(
+    (await lintStagedCheck(cfg, dir, 'pre-commit')).map((d) => d.id),
+    ['lintStaged'],
+  );
+  assert.deepEqual(await csharpierDirs(dir), ['backend']);
+  assert.ok((await dotnetChecks(cfg, dir, 'pre-commit')).some((d) => d.id === 'dotnet:csharpier'));
+
+  const groups = groupByOwnerDir(dir, staged, (abs) => fs.existsSync(path.join(abs, 'package.json')));
+  assert.deepEqual(
+    [...groups],
+    [
+      ['apps/docs', ['apps/docs/readme.md']],
+      ['apps/web', ['apps/web/src/a.ts']],
+    ],
+  );
+  assert.equal(relativeTo('apps/web', 'apps/web/src/a.ts'), 'src/a.ts');
+  assert.equal(relativeTo('', 'apps/web/src/a.ts'), 'apps/web/src/a.ts');
+
+  // A root package.json without the configured scripts still falls back to the packages.
+  w('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['apps/*'] }));
+  assert.equal(effectiveNpmScope(cfg, dir), 'affected');
+  w('package.json', JSON.stringify({ name: 'root', scripts: { lint: 'turbo lint' } }));
+  assert.equal(effectiveNpmScope(cfg, dir), 'root');
+});

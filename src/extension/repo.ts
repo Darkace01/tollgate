@@ -10,6 +10,25 @@ import { editorSettings } from './settings';
 
 export const STAGES: Stage[] = ['pre-commit', 'commit-msg', 'pre-push'];
 
+const real = (p: string) => {
+  const r = fs.realpathSync.native(p);
+  return process.platform === 'win32' ? r.toLowerCase() : r;
+};
+
+/**
+ * git reports the repository root as a canonical path (symlinks resolved, Windows 8.3 short names expanded),
+ * but VS Code addresses files by the path the folder was opened with — e.g. macOS `/var/…` vs `/private/var/…`.
+ * Express the root in the workspace's own spelling so diagnostics and "open file" links match open editors.
+ */
+export function alignWithWorkspacePath(folderPath: string, gitRoot: string): string {
+  try {
+    const mapped = path.resolve(folderPath, path.relative(real(folderPath), real(gitRoot)));
+    return real(mapped) === real(gitRoot) ? mapped : gitRoot;
+  } catch {
+    return gitRoot;
+  }
+}
+
 export class Repo implements vscode.Disposable {
   reports = new Map<Stage, RunReport>();
   hooks?: HookStatus;
@@ -33,7 +52,8 @@ export class Repo implements vscode.Disposable {
   }
 
   static async discover(folder: vscode.WorkspaceFolder): Promise<string | undefined> {
-    return findRepoRoot(folder.uri.fsPath);
+    const root = await findRepoRoot(folder.uri.fsPath);
+    return root ? alignWithWorkspacePath(folder.uri.fsPath, root) : undefined;
   }
 
   async init(): Promise<void> {

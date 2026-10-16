@@ -181,7 +181,7 @@ Yes, for Husky users: integrate once and commit the hook line. Teammates without
 
 ## Feedback
 
-Found a bug or have an idea? [Open an issue](https://github.com/darkace01/tollgate/issues). If Tollgate saves you from committing a secret, a ⭐ on the [repo](https://github.com/darkace01/tollgate) is appreciated.
+Found a bug or have an idea? [Open an issue](https://github.com/Darkace01/tollgate/issues). If Tollgate saves you from committing a secret, a ⭐ on the [repo](https://github.com/Darkace01/tollgate) is appreciated.
 
 ## License
 

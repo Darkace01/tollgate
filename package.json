@@ -3,7 +3,7 @@
   "displayName": "Tollgate — Pre-Commit Checks",
   "description": "Pre-commit checks that just work: runs your lint, typecheck, Biome and Prettier, blocks secrets, debug code, conflict markers and large files, and enforces commit message rules — from VS Code or the terminal.",
   "version": "1.0.0",
-  "publisher": "darkace01",
+  "publisher": "KazeemQuadri",
   "author": {
     "name": "Kazeem Quadri"
   },
@@ -13,13 +13,13 @@
     "color": "#1B2547",
     "theme": "dark"
   },
-  "homepage": "https://github.com/darkace01/tollgate#readme",
+  "homepage": "https://github.com/Darkace01/tollgate#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/darkace01/tollgate.git"
+    "url": "https://github.com/Darkace01/tollgate.git"
   },
   "bugs": {
-    "url": "https://github.com/darkace01/tollgate/issues"
+    "url": "https://github.com/Darkace01/tollgate/issues"
   },
   "qna": "marketplace",
   "pricing": "Free",

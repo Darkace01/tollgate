@@ -9,7 +9,11 @@ const { execSync } = require('node:child_process');
 const assert = require('node:assert/strict');
 
 const root = path.resolve(__dirname, '..');
-const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'pcg-smoke-'));
+// Open the workspace through a symlink (a junction on Windows), like macOS /var → /private/var or a symlinked
+// project folder: git reports the resolved path, the editor uses this one, and the two must still line up.
+const realRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'tg-smoke-'));
+const repo = `${realRepo}-link`;
+fs.symlinkSync(realRepo, repo, process.platform === 'win32' ? 'junction' : 'dir');
 const sh = (c) => execSync(c, { cwd: repo, stdio: 'pipe' }).toString();
 sh('git init -q -b feature/smoke && git config user.email a@b.c && git config user.name T');
 fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ scripts: { lint: 'node -e "process.exit(0)"' } }));
@@ -186,7 +190,7 @@ Module._load = function (req, ...rest) {
   const state = new Map();
   const context = {
     subscriptions: [],
-    extension: { packageJSON: pkg, id: 'darkace01.tollgate' },
+    extension: { packageJSON: pkg, id: 'KazeemQuadri.tollgate' },
     asAbsolutePath: (p) => path.join(root, p),
     workspaceState: { get: (k) => state.get(k), update: async (k, v) => state.set(k, v) },
   };

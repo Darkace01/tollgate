@@ -10,6 +10,7 @@ export const BUILTIN_LABELS: Record<keyof ChecksConfig, string> = {
   npmScripts: 'package.json scripts',
   lintStaged: 'lint-staged',
   biome: 'Biome',
+  prettier: 'Prettier',
   secrets: 'Secrets & credentials',
   conflictMarkers: 'Merge conflict markers',
   debugStatements: 'Debug statements',
@@ -101,21 +102,21 @@ export class ResultsTree implements vscode.TreeDataProvider<Node> {
         label: 'Config error',
         icon: 'error',
         tooltip: repo.configError,
-        command: { command: 'precommitGuard.showResolvedConfig', title: 'Show config' },
+        command: { command: 'tollgate.showResolvedConfig', title: 'Show config' },
       });
     if (repo.loaded && !repo.loaded.config.enabled)
       out.push({
         type: 'info',
         label: 'Paused — checks are disabled',
         icon: 'debug-pause',
-        command: { command: 'precommitGuard.togglePause', title: 'Resume' },
+        command: { command: 'tollgate.togglePause', title: 'Resume' },
       });
     if (!repo.hooksInstalled) {
       out.push({
         type: 'info',
         label: repo.hooks?.customHooksPath ? 'Hooks not connected (core.hooksPath is set)' : 'Git hooks not installed — click to install',
         icon: 'plug',
-        command: { command: 'precommitGuard.installHooks', title: 'Install', arguments: [repo.root] },
+        command: { command: 'tollgate.installHooks', title: 'Install', arguments: [repo.root] },
       });
     }
     const stages = repo.loaded?.config.hooks ?? STAGES;
@@ -141,7 +142,7 @@ export class ResultsTree implements vscode.TreeDataProvider<Node> {
       return { type: 'check', repo, stage, id: d.id, name: d.name, enabled: true, builtinKey, custom, npmScript, result: results.get(d.id) };
     });
     // Results from the last run for checks that no longer exist (e.g. scope changed) are dropped; disabled ones are listed for easy toggling.
-    if (vscode.workspace.getConfiguration('precommitGuard').get<boolean>('showDisabledChecks', true)) {
+    if (vscode.workspace.getConfiguration('tollgate').get<boolean>('showDisabledChecks', true)) {
       for (const key of Object.keys(config.checks) as (keyof ChecksConfig)[]) {
         const c = config.checks[key] as { enabled: boolean | 'auto' };
         if (builtinStage(key, repo) !== stage) continue;
@@ -153,7 +154,16 @@ export class ResultsTree implements vscode.TreeDataProvider<Node> {
         }
       }
     }
-    if (!nodes.length) return [{ type: 'info', label: 'No checks for this stage', icon: 'circle-slash' }];
+    if (!nodes.length) {
+      return [
+        {
+          type: 'info',
+          label: stage === 'pre-push' ? 'No checks yet — add one (e.g. tests) with ＋' : 'No checks for this stage — add one with ＋',
+          icon: 'add',
+          command: { command: 'tollgate.addCustomCheck', title: 'Add Custom Check', arguments: [repo.root] },
+        },
+      ];
+    }
     return nodes;
   }
 
@@ -230,7 +240,7 @@ export class ResultsTree implements vscode.TreeDataProvider<Node> {
       case 'output': {
         const item = new vscode.TreeItem('Show full output');
         item.iconPath = new vscode.ThemeIcon('output');
-        item.command = { command: 'precommitGuard.showCheckOutput', title: 'Show output', arguments: [node.result] };
+        item.command = { command: 'tollgate.showCheckOutput', title: 'Show output', arguments: [node.result] };
         return item;
       }
       case 'info': {

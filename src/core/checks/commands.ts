@@ -78,6 +78,18 @@ export function parseToolOutput(output: string, cwd: string, root: string): Find
   for (const raw of output.split(/\r?\n/)) {
     const line = raw.trimEnd();
     let m: RegExpExecArray | null;
+    // Prettier --check: "[warn] src/a.ts" (unformatted) and "[error] src/a.ts: SyntaxError: … (1:5)"
+    if ((m = /^\[(warn|error)\] (.+?)(?:: (.*?)(?: \((\d+):(\d+)\))?)?$/.exec(line))) {
+      const file = rel(m[2]);
+      if (file) {
+        add(
+          m[1] === 'warn' && !m[3]
+            ? { file, line: 1, rule: 'prettier', message: 'File is not formatted with Prettier (run prettier --write)' }
+            : { file, line: m[4] ? +m[4] : 1, column: m[5] ? +m[5] : undefined, rule: 'syntax', message: m[3] ?? 'Prettier error' },
+        );
+        continue;
+      }
+    }
     if ((m = /^(.+?)\((\d+),(\d+)\): (error|warning) (TS\d+): (.*)$/.exec(line))) {
       const file = rel(m[1]);
       if (file) add({ file, line: +m[2], column: +m[3], rule: m[5], message: m[6] });
@@ -269,16 +281,16 @@ export function hasBiome(root: string): boolean {
 }
 
 /** True when one of the configured package.json scripts already invokes biome (avoid running it twice). */
-function scriptsRunBiome(cfg: GuardConfig, root: string): boolean {
+function scriptsRunTool(cfg: GuardConfig, root: string, tool: string): boolean {
   if (!cfg.checks.npmScripts.enabled) return false;
   const scripts = readScripts(root);
-  return cfg.checks.npmScripts.scripts.some((s) => /\bbiome\b/.test(scripts[s] ?? ''));
+  return cfg.checks.npmScripts.scripts.some((s) => new RegExp(`\\b${tool}\\b`).test(scripts[s] ?? ''));
 }
 
 export function biomeCheck(cfg: GuardConfig, root: string, stage: Stage): CheckDef[] {
   const c = cfg.checks.biome;
   if (stage !== 'pre-commit' || c.enabled === false) return [];
-  if (c.enabled === 'auto' && (!hasBiome(root) || scriptsRunBiome(cfg, root))) return [];
+  if (c.enabled === 'auto' && (!hasBiome(root) || scriptsRunTool(cfg, root, 'biome'))) return [];
   return [
     {
       id: 'biome',
@@ -314,6 +326,127 @@ export function biomeCheck(cfg: GuardConfig, root: string, stage: Stage): CheckD
           output,
           findings: last!.status === 'passed' ? [] : findings,
           summary: last!.status === 'passed' ? `${files.length} file(s) clean` : last!.summary,
+        };
+      },
+    },
+  ];
+}
+
+// ---------------------------------------------------------------- Prettier
+
+const PRETTIER_CONFIGS = [
+  '.prettierrc',
+  '.prettierrc.json',
+  '.prettierrc.json5',
+  '.prettierrc.yaml',
+  '.prettierrc.yml',
+  '.prettierrc.toml',
+  '.prettierrc.js',
+  '.prettierrc.cjs',
+  '.prettierrc.mjs',
+  '.prettierrc.ts',
+  '.prettierrc.cts',
+  '.prettierrc.mts',
+  'prettier.config.js',
+  'prettier.config.cjs',
+  'prettier.config.mjs',
+  'prettier.config.ts',
+  'prettier.config.cts',
+  'prettier.config.mts',
+];
+
+/**
+ * A Prettier config file always counts. The `prettier` dependency alone only counts when the project
+ * isn't set up for Biome (projects often keep prettier around for tooling while formatting with Biome).
+ */
+export function hasPrettier(root: string): boolean {
+  if (PRETTIER_CONFIGS.some((f) => fs.existsSync(path.join(root, f)))) return true;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    if (pkg.prettier) return true;
+    const dep = !!(pkg.devDependencies?.prettier || pkg.dependencies?.prettier);
+    const biomeConfigured = fs.existsSync(path.join(root, 'biome.json')) || fs.existsSync(path.join(root, 'biome.jsonc'));
+    return dep && !biomeConfigured;
+  } catch {
+    return false;
+  }
+}
+
+/** Parse `prettier --check` / `--write` output: "[warn] file" = unformatted, "[error] file: SyntaxError … (l:c)". */
+export function parsePrettierOutput(output: string, root: string): Finding[] {
+  const findings: Finding[] = [];
+  for (const raw of output.split(/\r?\n/)) {
+    const line = raw.trim();
+    let m: RegExpExecArray | null;
+    if ((m = /^\[error\] (.+?): (.*?)(?: \((\d+):(\d+)\))?$/.exec(line))) {
+      const file = normalizePath(m[1]);
+      if (fs.existsSync(path.join(root, file)))
+        findings.push({ file, line: m[3] ? +m[3] : 1, column: m[4] ? +m[4] : undefined, rule: 'syntax', message: m[2] });
+    } else if ((m = /^\[warn\] (.+)$/.exec(line)) && !/\s(issues?|found|Run Prettier)\b/.test(m[1])) {
+      const file = normalizePath(m[1]);
+      if (fs.existsSync(path.join(root, file)))
+        findings.push({ file, line: 1, rule: 'prettier', message: 'File is not formatted with Prettier (run prettier --write)' });
+    }
+  }
+  return findings;
+}
+
+export function prettierCheck(cfg: GuardConfig, root: string, stage: Stage): CheckDef[] {
+  const c = cfg.checks.prettier;
+  if (stage !== 'pre-commit' || c.enabled === false) return [];
+  if (c.enabled === 'auto' && (!hasPrettier(root) || scriptsRunTool(cfg, root, 'prettier'))) return [];
+  return [
+    {
+      id: 'prettier',
+      name: c.applyFixes ? 'Prettier (format)' : 'Prettier',
+      stage,
+      severity: c.severity,
+      kind: 'command',
+      run: async (ctx) => {
+        const files = (await ctx.fileSet()).files.filter((f) => !isExcluded(ctx, f, c.exclude));
+        if (!files.length) return { status: 'skipped', summary: 'No staged files' };
+        const bin = execBin(detectPackageManager(root, root, cfg.packageManager), 'prettier');
+        const extra = c.extraArgs.length ? ` ${c.extraArgs.map(shellQuote).join(' ')}` : '';
+        // With applyFixes, fully-staged files are written + re-staged; partially-staged ones are only checked
+        // (writing them would mix unstaged edits into the commit).
+        const partial = c.applyFixes && ctx.mode === 'staged' ? new Set(await unstagedFiles(root)) : new Set<string>();
+        const toWrite = c.applyFixes && ctx.mode === 'staged' ? files.filter((f) => !partial.has(f)) : [];
+        const toCheck = files.filter((f) => !toWrite.includes(f));
+        let output = '';
+        const findings: Finding[] = [];
+        let failed: CheckOutcome | undefined;
+        for (const [mode, list] of [
+          ['--write', toWrite],
+          ['--check', toCheck],
+        ] as const) {
+          for (const chunk of chunkArgs(list)) {
+            const command = `${bin} ${mode} --ignore-unknown --no-error-on-unmatched-pattern${extra} ${chunk.map(shellQuote).join(' ')}`;
+            const res = await runShell(command, { cwd: root, timeoutMs: c.timeoutSec * 1000, signal: ctx.signal });
+            output += res.output;
+            if (res.code !== 0 || res.timedOut || res.cancelled) {
+              const o = commandOutcome(res, command, root, root, c.timeoutSec);
+              findings.push(...parsePrettierOutput(res.output, root));
+              failed ??= o;
+            }
+          }
+        }
+        if (toWrite.length && !failed) await stageFiles(root, toWrite);
+        const command = `${bin} ${c.applyFixes ? '--write' : '--check'} --ignore-unknown <staged files>`;
+        if (failed) {
+          const unformatted = findings.filter((f) => f.rule === 'prettier').length;
+          const syntax = findings.filter((f) => f.rule === 'syntax').length;
+          const summary = findings.length
+            ? [unformatted && `${unformatted} file(s) not formatted`, syntax && `${syntax} syntax error(s)`].filter(Boolean).join(', ')
+            : failed.summary;
+          return { ...failed, command, output, summary, findings };
+        }
+        const partialNote = toCheck.length && c.applyFixes ? ` · ${toCheck.length} partially-staged file(s) checked only` : '';
+        return {
+          status: 'passed',
+          summary: toWrite.length ? `Formatted & re-staged ${toWrite.length} file(s)${partialNote}` : `${files.length} file(s) formatted`,
+          command,
+          output,
+          findings: [],
         };
       },
     },

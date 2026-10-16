@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { type PartialConfig, stripJsonComments } from '../core/config';
 
-export const SECTION = 'precommitGuard';
+export const SECTION = 'tollgate';
 
 /** Keys that map 1:1 onto GuardConfig and are shared with the git hook runner. */
 const CONFIG_KEYS = [
@@ -44,7 +44,7 @@ export function uiSetting<T>(key: string, folder?: vscode.Uri): T {
   return vscode.workspace.getConfiguration(SECTION, folder).get<T>(key) as T;
 }
 
-export const repoConfigFile = (root: string) => path.join(root, '.precommitrc.json');
+export const repoConfigFile = (root: string) => path.join(root, '.tollgaterc.json');
 
 function writeTarget(root: string): 'file' | 'settings' {
   const pref = uiSetting<string>('configTarget');
@@ -74,7 +74,7 @@ function setPath(obj: Record<string, unknown>, keyPath: string[], value: unknown
 
 /**
  * Update a config value (e.g. ['checks','secrets','enabled']) in the right place:
- * .precommitrc.json when it exists (team config), otherwise workspace settings.
+ * .tollgaterc.json when it exists (team config), otherwise workspace settings.
  * Returns where it was written.
  */
 export async function updateConfigValue(root: string, folder: vscode.Uri | undefined, keyPath: string[], value: unknown): Promise<string> {
@@ -82,7 +82,7 @@ export async function updateConfigValue(root: string, folder: vscode.Uri | undef
     const data = readRc(root);
     setPath(data, keyPath, value);
     writeRc(root, data);
-    return '.precommitrc.json';
+    return '.tollgaterc.json';
   }
   const cfg = vscode.workspace.getConfiguration(SECTION, folder);
   const [top, ...rest] = keyPath;
@@ -108,7 +108,7 @@ export async function addCustom(root: string, folder: vscode.Uri | undefined, ch
     const data = readRc(root);
     data.custom = [...((data.custom as unknown[]) ?? []), check];
     writeRc(root, data);
-    return '.precommitrc.json';
+    return '.tollgaterc.json';
   }
   const cfg = vscode.workspace.getConfiguration(SECTION, folder);
   const existing = cfg.inspect<unknown[]>('custom')?.workspaceValue ?? [];
@@ -128,7 +128,7 @@ export async function updateCustom(
   if (Array.isArray(data.custom) && data.custom.some(match)) {
     data.custom = data.custom.map((c: Record<string, unknown>) => (match(c) ? { ...c, ...patch } : c));
     writeRc(root, data);
-    return '.precommitrc.json';
+    return '.tollgaterc.json';
   }
   const cfg = vscode.workspace.getConfiguration(SECTION, folder);
   const i = cfg.inspect<Record<string, unknown>[]>('custom');
@@ -145,7 +145,7 @@ export async function updateCustom(
       return target === vscode.ConfigurationTarget.Global ? 'user settings' : 'workspace settings';
     }
   }
-  // Defined in package.json#precommitGuard — override by name in workspace settings.
+  // Defined in package.json#tollgate — override by name in workspace settings.
   const override = check.id ? { id: check.id, ...patch } : { name: check.name, ...patch };
   await cfg.update('custom', [...(i?.workspaceValue ?? []), override], vscode.ConfigurationTarget.Workspace);
   return 'workspace settings';

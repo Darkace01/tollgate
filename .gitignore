@@ -2,4 +2,4 @@ node_modules/
 dist/
 out/
 *.vsix
-.precommitrc.local.json
+.tollgaterc.local.json

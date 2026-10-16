@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Pre-Commit Guard runner — invoked by git hooks, usable standalone. No dependencies. */
+/* Tollgate runner — invoked by git hooks, usable standalone. No dependencies. */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { loadConfig, sampleConfig } from './core/config';
@@ -12,20 +12,20 @@ import type { GuardConfig, Stage } from './core/types';
 declare const __VERSION__: string;
 const VERSION = typeof __VERSION__ !== 'undefined' ? __VERSION__ : 'dev';
 
-const HELP = `Pre-Commit Guard ${VERSION}
+const HELP = `Tollgate ${VERSION}
 
 Usage:
   runner hook <pre-commit|commit-msg|pre-push> [git args]   (called by git)
   runner run [--all] [--stage <stage>] [--only a,b] [--skip a,b] [--json] [--verbose]
   runner fix                 Fix trailing whitespace / EOF newlines in staged files
   runner config              Print the resolved configuration
-  runner init                Create a .precommitrc.json in the repo root
+  runner init                Create a .tollgaterc.json in the repo root
   runner install [--force]   Install git hooks (copies this runner into .git)
   runner uninstall           Remove git hooks
 
 Environment:
   SKIP=id1,id2               Skip checks by id (prefix match, e.g. SKIP=npmScripts)
-  PRECOMMIT_GUARD=0          Disable all checks
+  TOLLGATE=0          Disable all checks
 `;
 
 function parseArgs(argv: string[]) {
@@ -62,11 +62,11 @@ async function main(): Promise<number> {
     console.log(HELP);
     return 0;
   }
-  if (process.env.PRECOMMIT_GUARD === '0') return 0;
+  if (process.env.TOLLGATE === '0') return 0;
 
   const root = await findRepoRoot(process.cwd());
   if (!root) {
-    console.error('pre-commit-guard: not inside a git repository');
+    console.error('tollgate: not inside a git repository');
     return cmd === 'hook' ? 0 : 2;
   }
   const editorSettingsFile = await editorSettingsPath(root);
@@ -84,7 +84,7 @@ async function main(): Promise<number> {
       try {
         config = loadConfig(root, { editorSettingsFile }).config;
       } catch (e) {
-        console.error(`pre-commit-guard: ${(e as Error).message}`);
+        console.error(`tollgate: ${(e as Error).message}`);
         return cmd === 'hook' ? 1 : 2;
       }
       const report = await runChecks({
@@ -119,9 +119,9 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'init': {
-      const f = path.join(root, '.precommitrc.json');
+      const f = path.join(root, '.tollgaterc.json');
       if (fs.existsSync(f)) {
-        console.error('.precommitrc.json already exists');
+        console.error('.tollgaterc.json already exists');
         return 1;
       }
       fs.writeFileSync(f, JSON.stringify(sampleConfig(), null, 2) + '\n');
@@ -140,7 +140,7 @@ async function main(): Promise<number> {
     }
     case 'uninstall': {
       const removed = await uninstallHooks(root);
-      console.log(removed.length ? `Removed hooks: ${removed.join(', ')}` : 'No Pre-Commit Guard hooks installed.');
+      console.log(removed.length ? `Removed hooks: ${removed.join(', ')}` : 'No Tollgate hooks installed.');
       return 0;
     }
     default:
@@ -152,7 +152,7 @@ async function main(): Promise<number> {
 main().then(
   (code) => process.exit(code),
   (e) => {
-    console.error(`pre-commit-guard crashed: ${e?.stack ?? e}`);
+    console.error(`tollgate crashed: ${e?.stack ?? e}`);
     // Never block a commit because of an internal bug.
     process.exit(process.argv[2] === 'hook' ? 0 : 2);
   },

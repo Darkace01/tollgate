@@ -36,34 +36,34 @@ before(() => {
     `const fs=require('fs');let bad=0;for(const f of fs.readdirSync('src')){const t=fs.readFileSync('src/'+f,'utf8');t.split('\\n').forEach((l,i)=>{if(l.includes('var ')){console.log('src/'+f+':'+(i+1)+':1: no-var Unexpected var');bad++;}});}process.exit(bad?1:0);\n`,
   );
   write('src/ok.js', 'const a = 1;\n');
-  write('.precommitrc.json', JSON.stringify({ checks: { commitMessage: { enabled: true } } }, null, 2));
+  write('.tollgaterc.json', JSON.stringify({ checks: { commitMessage: { enabled: true } } }, null, 2));
   git('add', '.');
   const install = sh('node', [CLI, 'install']);
   assert.equal(install.code, 0, install.out);
   assert.ok(fs.existsSync(path.join(repo, '.git', 'hooks', 'pre-commit')));
-  assert.ok(fs.existsSync(path.join(repo, '.git', 'precommit-guard', 'runner.js')));
+  assert.ok(fs.existsSync(path.join(repo, '.git', 'tollgate', 'runner.js')));
 });
 
 test('clean commit passes (lint script runs, conventional message)', () => {
   const r = commit('chore: initial commit');
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /lint/);
-  const report = JSON.parse(fs.readFileSync(path.join(repo, '.git', 'precommit-guard', 'last-pre-commit.json'), 'utf8'));
+  const report = JSON.parse(fs.readFileSync(path.join(repo, '.git', 'tollgate', 'last-pre-commit.json'), 'utf8'));
   assert.equal(report.blocked, false);
   assert.ok(report.results.some((x: { id: string; status: string }) => x.id === 'npmScripts:lint' && x.status === 'passed'));
 });
 
 test('secret blocks the commit and is masked', () => {
-  write('src/config.js', "const key = 'AKIAIOSFODNN7EXAMPLE';\n");
+  write('src/config.js', "const key = 'AKIAIOSFODNN7EXAMPLE';\n"); // tollgate-ignore (test fixture)
   git('add', '.');
   const r = commit('feat: add config');
   assert.notEqual(r.code, 0);
   assert.match(r.out, /AWS access key ID/);
-  assert.doesNotMatch(r.out, /AKIAIOSFODNN7EXAMPLE/);
+  assert.doesNotMatch(r.out, /AKIAIOSFODNN7EXAMPLE/); // tollgate-ignore
 });
 
 test('inline ignore allows it', () => {
-  write('src/config.js', "const key = 'AKIAIOSFODNN7EXAMPLE'; // precommit-guard-ignore\n");
+  write('src/config.js', "const key = 'AKIAIOSFODNN7EXAMPLE'; // tollgate-ignore\n");
   git('add', '.');
   const r = commit('feat: add config');
   assert.equal(r.code, 0, r.out);
@@ -107,7 +107,7 @@ test('forbidden file, conflict markers and custom command', () => {
   write('src/m.js', 'const a = 1;\n');
   git('add', '.');
 
-  const rc = JSON.parse(fs.readFileSync(path.join(repo, '.precommitrc.json'), 'utf8'));
+  const rc = JSON.parse(fs.readFileSync(path.join(repo, '.tollgaterc.json'), 'utf8'));
   rc.custom = [
     {
       name: 'No foo',
@@ -115,7 +115,7 @@ test('forbidden file, conflict markers and custom command', () => {
       glob: 'src/**/*.js',
     },
   ];
-  write('.precommitrc.json', JSON.stringify(rc, null, 2));
+  write('.tollgaterc.json', JSON.stringify(rc, null, 2));
   write('src/foo.js', 'const foo = 1;\n');
   git('add', '.');
   r = commit('feat: add foo module');
@@ -127,10 +127,10 @@ test('forbidden file, conflict markers and custom command', () => {
 
 test('protected branch warns but does not block by default; autoFix fixes whitespace', () => {
   git('switch', '-q', '-c', 'main');
-  const rc = JSON.parse(fs.readFileSync(path.join(repo, '.precommitrc.json'), 'utf8'));
+  const rc = JSON.parse(fs.readFileSync(path.join(repo, '.tollgaterc.json'), 'utf8'));
   rc.autoFix = true;
   rc.checks.trailingWhitespace = { enabled: true, severity: 'error' };
-  write('.precommitrc.json', JSON.stringify(rc, null, 2));
+  write('.tollgaterc.json', JSON.stringify(rc, null, 2));
   write('src/ws.js', 'const w = 1;   \n');
   git('add', '.');
   const r = commit('style: whitespace');
@@ -148,7 +148,7 @@ test('uninstall restores', () => {
 
 test('Biome check auto-detects biome.json and blocks lint errors', () => {
   const biomePkg = path.resolve(__dirname, '..', '..', 'node_modules', '@biomejs');
-  if (!fs.existsSync(biomePkg)) return;
+  if (!fs.existsSync(biomePkg) || process.platform === 'win32') return; // uses file symlinks
   repo = fs.mkdtempSync(path.join(os.tmpdir(), 'pcg-biome-'));
   git('init', '-q', '-b', 'feature/biome');
   git('config', 'user.email', 't@example.com');
@@ -172,4 +172,42 @@ test('Biome check auto-detects biome.json and blocks lint errors', () => {
   r = commit('feat: add biome demo');
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /Biome check\s+\d+ file\(s\) clean/);
+});
+
+test('Prettier check auto-detects .prettierrc, blocks unformatted files, and applyFixes formats + re-stages', () => {
+  const prettierPkg = path.resolve(__dirname, '..', '..', 'node_modules', 'prettier');
+  if (!fs.existsSync(prettierPkg) || process.platform === 'win32') return; // uses file symlinks
+  repo = fs.mkdtempSync(path.join(os.tmpdir(), 'tg-prettier-'));
+  git('init', '-q', '-b', 'feature/prettier');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 'Test');
+  git('config', 'commit.gpgsign', 'false');
+  fs.mkdirSync(path.join(repo, 'node_modules', '.bin'), { recursive: true });
+  fs.symlinkSync(prettierPkg, path.join(repo, 'node_modules', 'prettier'));
+  fs.symlinkSync(path.join(prettierPkg, 'bin', 'prettier.cjs'), path.join(repo, 'node_modules', '.bin', 'prettier'));
+  write('.gitignore', 'node_modules\n');
+  write('.prettierrc', JSON.stringify({ singleQuote: true }));
+  write('.prettierignore', '*.json\n.prettierrc\n');
+  write('package.json', JSON.stringify({ name: 'p' }));
+  write('src/a.ts', 'const  x = {a:1,b:"two"}\nexport default x\n');
+  git('add', '.');
+  assert.equal(sh('node', [CLI, 'install']).code, 0);
+
+  let r = commit('feat: add prettier demo');
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /Prettier\s+1 file\(s\) not formatted/);
+  assert.match(r.out, /src\/a\.ts/);
+
+  write('.tollgaterc.json', JSON.stringify({ checks: { prettier: { applyFixes: true } } }));
+  git('add', '.');
+  r = commit('feat: add prettier demo');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /Formatted & re-staged/);
+  assert.equal(git('show', 'HEAD:src/a.ts').out, "const x = { a: 1, b: 'two' };\nexport default x;\n");
+
+  write('src/b.ts', 'const = ;\n');
+  git('add', '.');
+  r = commit('feat: add broken file');
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /syntax error/);
 });

@@ -13,7 +13,7 @@ const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'pcg-smoke-'));
 const sh = (c) => execSync(c, { cwd: repo, stdio: 'pipe' }).toString();
 sh('git init -q -b feature/smoke && git config user.email a@b.c && git config user.name T');
 fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ scripts: { lint: 'node -e "process.exit(0)"' } }));
-fs.writeFileSync(path.join(repo, 'a.js'), "console.log('x');\nconst k = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';\n");
+fs.writeFileSync(path.join(repo, 'a.js'), "console.log('x');\nconst k = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';\n"); // tollgate-ignore (test fixture)
 sh('git add .');
 
 const settings = {}; // key -> value (workspace)
@@ -111,6 +111,10 @@ const vscode = {
   window: {
     createOutputChannel: () => ({ appendLine: (l) => process.env.VERBOSE && console.log('  [out]', l), show() {}, dispose() {} }),
     createStatusBarItem: () => ({ show() {}, hide() {}, dispose() {} }),
+    createTreeView: (id, opts) => {
+      treeProviders.set(id, opts.treeDataProvider);
+      return { badge: undefined, dispose() {} };
+    },
     registerTreeDataProvider: (id, p) => {
       treeProviders.set(id, p);
       return { dispose() {} };
@@ -161,7 +165,7 @@ const vscode = {
       inspect: (k) => ({ workspaceValue: settings[k] }),
       update: async (k, v) => {
         settings[k] = v;
-        for (const fn of configListeners) await fn({ affectsConfiguration: (s) => s === 'precommitGuard' || s === `precommitGuard.${k}` });
+        for (const fn of configListeners) await fn({ affectsConfiguration: (s) => s === 'tollgate' || s === `tollgate.${k}` });
       },
     }),
     openTextDocument: async () => ({}),
@@ -169,7 +173,7 @@ const vscode = {
   },
 };
 const pkg = require(path.join(root, 'package.json'));
-const defaults = Object.fromEntries(Object.entries(pkg.contributes.configuration.properties).map(([k, v]) => [k.replace('precommitGuard.', ''), v.default]));
+const defaults = Object.fromEntries(Object.entries(pkg.contributes.configuration.properties).map(([k, v]) => [k.replace('tollgate.', ''), v.default]));
 defaults.autoInstallHooks = 'always';
 
 const origLoad = Module._load;
@@ -182,7 +186,7 @@ Module._load = function (req, ...rest) {
   const state = new Map();
   const context = {
     subscriptions: [],
-    extension: { packageJSON: pkg, id: '10star.precommit-guard' },
+    extension: { packageJSON: pkg, id: 'darkace01.tollgate' },
     asAbsolutePath: (p) => path.join(root, p),
     workspaceState: { get: (k) => state.get(k), update: async (k, v) => state.set(k, v) },
   };
@@ -193,14 +197,14 @@ Module._load = function (req, ...rest) {
   console.log(`✔ ${pkg.contributes.commands.length} commands registered`);
 
   // autoInstallHooks=always installed the hooks.
-  assert.ok(fs.readFileSync(path.join(repo, '.git/hooks/pre-commit'), 'utf8').includes('precommit-guard-managed'));
-  assert.ok(fs.existsSync(path.join(repo, '.git/precommit-guard/runner.js')));
-  assert.ok(fs.existsSync(path.join(repo, '.git/precommit-guard/vscode-settings.json')));
+  assert.ok(fs.readFileSync(path.join(repo, '.git/hooks/pre-commit'), 'utf8').includes('tollgate-managed'));
+  assert.ok(fs.existsSync(path.join(repo, '.git/tollgate/runner.js')));
+  assert.ok(fs.existsSync(path.join(repo, '.git/tollgate/vscode-settings.json')));
   console.log('✔ hooks + runner installed on activation');
 
   // Run checks from the UI.
-  await commands.get('precommitGuard.run')();
-  const tree = treeProviders.get('precommitGuard.results');
+  await commands.get('tollgate.run')();
+  const tree = treeProviders.get('tollgate.results');
   const top = await tree.getChildren();
   const pre = top.find((n) => n.type === 'stage' && n.stage === 'pre-commit');
   assert.ok(pre, 'pre-commit stage node');
@@ -219,15 +223,15 @@ Module._load = function (req, ...rest) {
   // Toggle a disabled check on via the tree.
   const todo = checks.find((n) => n.id === 'todoComments');
   assert.equal(todo.enabled, false);
-  await commands.get('precommitGuard.enableCheck')(todo);
+  await commands.get('tollgate.enableCheck')(todo);
   assert.equal(settings.checks.todoComments.enabled, true);
-  const snap = JSON.parse(fs.readFileSync(path.join(repo, '.git/precommit-guard/vscode-settings.json'), 'utf8'));
+  const snap = JSON.parse(fs.readFileSync(path.join(repo, '.git/tollgate/vscode-settings.json'), 'utf8'));
   assert.equal(snap.checks.todoComments.enabled, true, 'settings snapshot synced for git hook');
   console.log('✔ enable check via tree → workspace settings + hook snapshot updated');
 
   // Hook commit from the "terminal" picks up VS Code settings and the UI reloads the report.
   settings.checks = { ...settings.checks, secrets: { enabled: false } };
-  for (const fn of configListeners) await fn({ affectsConfiguration: (s) => s === 'precommitGuard' || s === 'precommitGuard.checks' });
+  for (const fn of configListeners) await fn({ affectsConfiguration: (s) => s === 'tollgate' || s === 'tollgate.checks' });
   let out = '';
   try {
     out = execSync('git commit -m "chore: smoke test commit"', { cwd: repo, stdio: 'pipe' }).toString();
@@ -238,11 +242,11 @@ Module._load = function (req, ...rest) {
   console.log('✔ terminal commit passes with secrets disabled via VS Code settings');
 
   // Create config + resolved config + pause.
-  await commands.get('precommitGuard.createConfig')();
-  assert.ok(fs.existsSync(path.join(repo, '.precommitrc.json')));
-  await commands.get('precommitGuard.togglePause')();
+  await commands.get('tollgate.createConfig')();
+  assert.ok(fs.existsSync(path.join(repo, '.tollgaterc.json')));
+  await commands.get('tollgate.togglePause')();
   assert.equal(settings.enabled, false);
-  await commands.get('precommitGuard.uninstallHooks')();
+  await commands.get('tollgate.uninstallHooks')();
   assert.ok(!fs.existsSync(path.join(repo, '.git/hooks/pre-commit')));
   console.log('✔ createConfig, pause, uninstall');
 

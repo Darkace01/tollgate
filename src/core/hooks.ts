@@ -4,10 +4,10 @@ import { stateDir } from './engine';
 import { getConfigValue, hooksDir } from './git';
 import type { Stage } from './types';
 
-export const MARKER = 'precommit-guard-managed';
+export const MARKER = 'tollgate-managed';
 export const BACKUP_SUFFIX = '.pre-guard';
 export const RUNNER_FILE = 'runner.js';
-const HUSKY_MARKER = '# precommit-guard';
+const HUSKY_MARKER = '# tollgate';
 
 export interface HookStatus {
   hooksDir: string;
@@ -25,16 +25,16 @@ const toShPath = (p: string) => p.replace(/\\/g, '/');
 export function hookScript(stage: Stage, nodeFallback?: string): string {
   const passStdin = stage === 'pre-push';
   return `#!/bin/sh
-# ${MARKER} — installed by the Pre-Commit Guard VS Code extension.
-# Skip once: git commit --no-verify  ·  skip a check: SKIP=secrets,lint git commit  ·  disable: PRECOMMIT_GUARD=0
-[ "$PRECOMMIT_GUARD" = "0" ] && exit 0
+# ${MARKER} — installed by the Tollgate VS Code extension.
+# Skip once: git commit --no-verify  ·  skip a check: SKIP=secrets,lint git commit  ·  disable: TOLLGATE=0
+[ "$TOLLGATE" = "0" ] && exit 0
 HOOK_DIR=$(cd "$(dirname "$0")" && pwd)
 ${passStdin ? 'STDIN_DATA=$(cat)\n' : ''}if [ -x "$HOOK_DIR/${stage}${BACKUP_SUFFIX}" ]; then
   ${passStdin ? `printf '%s\\n' "$STDIN_DATA" | ` : ''}"$HOOK_DIR/${stage}${BACKUP_SUFFIX}" "$@" || exit $?
 fi
-RUNNER="$(git rev-parse --git-common-dir)/precommit-guard/${RUNNER_FILE}"
+RUNNER="$(git rev-parse --git-common-dir)/tollgate/${RUNNER_FILE}"
 if [ ! -f "$RUNNER" ]; then
-  echo "pre-commit-guard: runner not found at $RUNNER — skipping checks. Open the repo in VS Code to repair." >&2
+  echo "tollgate: runner not found at $RUNNER — skipping checks. Open the repo in VS Code to repair." >&2
   exit 0
 fi
 if command -v node >/dev/null 2>&1; then
@@ -44,7 +44,7 @@ FALLBACK="${nodeFallback ? toShPath(nodeFallback) : ''}"
 if [ -n "$FALLBACK" ] && [ -f "$FALLBACK" ]; then
   ELECTRON_RUN_AS_NODE=1 exec "$FALLBACK" "$RUNNER" hook ${stage} "$@"
 fi
-echo "pre-commit-guard: Node.js not found on PATH — skipping checks." >&2
+echo "tollgate: Node.js not found on PATH — skipping checks." >&2
 exit 0
 `;
 }
@@ -52,7 +52,7 @@ exit 0
 function readVersion(file: string): string | undefined {
   try {
     const head = fs.readFileSync(file, 'utf8').slice(0, 300);
-    return /precommit-guard-runner v([\w.-]+)/.exec(head)?.[1];
+    return /tollgate-runner v([\w.-]+)/.exec(head)?.[1];
   } catch {
     return undefined;
   }
@@ -87,14 +87,14 @@ export async function hookStatus(root: string, stages: Stage[] = ['pre-commit', 
   };
 }
 
-/** Copy the self-contained runner into .git/precommit-guard so hooks work even if the extension moves or updates. */
+/** Copy the self-contained runner into .git/tollgate so hooks work even if the extension moves or updates. */
 export async function installRunner(root: string, runnerSource: string, version: string): Promise<string> {
   const dir = await stateDir(root);
   fs.mkdirSync(dir, { recursive: true });
   const dest = path.join(dir, RUNNER_FILE);
   if (readVersion(dest) !== version || !fs.existsSync(dest)) {
     const body = fs.readFileSync(runnerSource, 'utf8').replace(/^#!.*\n/, '');
-    fs.writeFileSync(dest, `// precommit-guard-runner v${version} — generated, do not edit.\n${body}`);
+    fs.writeFileSync(dest, `// tollgate-runner v${version} — generated, do not edit.\n${body}`);
   }
   return dest;
 }
@@ -186,7 +186,7 @@ export async function integrateWithHusky(root: string, opts: Omit<InstallOptions
   for (const s of opts.stages) {
     const f = path.join(dir, s);
     const arg = s === 'commit-msg' ? ' "$1"' : '';
-    const line = `R="$(git rev-parse --git-common-dir)/precommit-guard/${RUNNER_FILE}"; [ -f "$R" ] && command -v node >/dev/null 2>&1 && { node "$R" hook ${s}${arg} || exit 1; } ${HUSKY_MARKER}`;
+    const line = `R="$(git rev-parse --git-common-dir)/tollgate/${RUNNER_FILE}"; [ -f "$R" ] && command -v node >/dev/null 2>&1 && { node "$R" hook ${s}${arg} || exit 1; } ${HUSKY_MARKER}`;
     let text = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '#!/usr/bin/env sh\n';
     if (text.includes(HUSKY_MARKER)) continue;
     if (!text.endsWith('\n')) text += '\n';

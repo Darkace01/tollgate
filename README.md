@@ -1,50 +1,94 @@
-# Pre-Commit Guard
+<p align="center">
+  <img src="media/icon.png" width="112" alt="Tollgate logo">
+</p>
 
-Configurable pre-commit checks for VS Code **and** the terminal. It works without any setup: it runs the lint, typecheck and format scripts in your `package.json`, runs Biome if you use it, and stops secrets, conflict markers, debug statements and oversized or forbidden files from being committed. You can turn every check on or off, tune it, or add your own shell commands.
+<h1 align="center">Tollgate — Pre-Commit Checks</h1>
 
-Commits are checked whether you make them from the Source Control panel, the terminal, or another Git client. The extension installs real git hooks that call a small self-contained runner, so checks run on every commit, and the results appear in VS Code.
+<p align="center">
+  <b>Every commit stops at the gate.</b><br>
+  Tollgate runs your linters, type-checker and formatter, and catches secrets, debug code, merge conflicts and oversized files <i>before</i> they reach your repository. It works whether you commit from VS Code or the terminal, and needs no setup.
+</p>
+
+---
+
+![Tollgate blocking a commit: results in the Checks view, problems highlighted in the editor, and the hook output in the terminal](images/hero.png)
+
+## Why Tollgate?
+
+- **Works on day one.** Open a repo and accept the prompt. Tollgate finds your `lint`, `typecheck` and `format:check` scripts, plus Biome, Prettier and lint-staged, and checks them on every commit.
+- **Works in VS Code and the terminal.** It installs real git hooks, so commits from the Source Control panel, the terminal and other Git clients are all checked. Results always appear in VS Code.
+- **Points at the problem.** Problems show up in a Checks view, the Problems panel and as squiggles in your code. Click any finding to jump to the exact line.
+- **Only checks what you changed.** Content checks only look at the lines you added, so problems in old code never block your commit.
+- **Configurable down to each check.** You can turn every check on or off, choose whether it blocks or warns, and tune it. You can also add any shell command as your own check.
+- **Shared with your team.** Commit a `.tollgaterc.json` and everyone gets the same rules, with autocomplete and validation in the editor.
 
 ## Features
 
-- **Uses your package.json scripts.** It finds `lint`, `typecheck`, `tsc`, `format:check`, `prettier:check` and similar scripts, detects your package manager (npm/yarn/pnpm/bun), and can scan monorepos per package.
-- **Biome built in.** If the repo has `biome.json(c)` or `@biomejs/biome`, it runs `biome check` on staged files. It can apply safe fixes and re-stage the files.
-- **lint-staged** runs automatically when the repo has a lint-staged config.
-- **Content checks** (only on lines you added, so old code never blocks you):
-  - secrets: AWS, GitHub, GitLab, Slack, Stripe, Google, OpenAI, Anthropic, npm, Azure, SendGrid, JWTs, private keys, credentials in URLs and hard-coded passwords. Matches are masked in the output.
-  - merge conflict markers
-  - debug statements: `console.log`, `debugger`, `.only` tests, `pdb`, `binding.pry`
-  - TODO/FIXME comments
-  - trailing whitespace and missing final newline (both auto-fixable)
-  - JSON that doesn't parse
-- **Git hygiene:** large files, forbidden files (`.env`, `*.pem`, keys…), protected branches, branch naming rules, commit message rules (Conventional Commits, ticket references, length limits).
-- **Custom checks:** run any shell command, with optional glob filters, `{files}` substitution and re-staging for formatters. A custom check can run at the pre-commit, commit-msg or pre-push stage.
-- **Presets:** `minimal`, `recommended` (the default), `strict` or `none`. Your overrides apply on top of the preset.
-- **UI:** a results view in the Source Control panel with one-click enable/disable, run and change-severity actions. Findings show in the Problems panel and you can click through to the line. A status bar item shows the last result, and you get a notification when a terminal commit is blocked.
-- **Team config:** commit `.precommitrc.json` so everyone gets the same rules. Personal overrides go in `.precommitrc.local.json`.
-- **Plays nicely with others:** existing hooks are kept and run first. Husky / `core.hooksPath` repos get a guarded one-liner instead of overwriting files.
+### What it checks
+
+| Check | What it does | Default |
+| --- | --- | --- |
+| **package.json scripts** | Runs `lint`, `typecheck`, `tsc`, `format:check` and similar if they exist. Detects npm / yarn / pnpm / bun. Monorepo aware. | ✅ blocks |
+| **Biome** | `biome check` on staged files when the project uses Biome | ✅ auto |
+| **Prettier** | `prettier --check` on staged files when the project uses Prettier. Can format and re-stage for you. | ✅ auto |
+| **lint-staged** | Runs your lint-staged config | ✅ auto |
+| **Secrets & credentials** | AWS, GitHub, GitLab, Stripe, Slack, Google, OpenAI, Anthropic, npm, Azure, SendGrid and Twilio keys, JWTs, private keys, passwords in code and in URLs. Matches are masked in the output. | ✅ blocks |
+| **Merge conflict markers** | `<<<<<<<` / `=======` / `>>>>>>>` | ✅ blocks |
+| **JSON syntax** | Staged `.json` files must parse | ✅ blocks |
+| **Large files** | Files over 1 MB (configurable) | ✅ blocks |
+| **Forbidden files** | `.env`, `*.pem`, `*.key`, `id_rsa`, … (`.env.example` is allowed) | ✅ blocks |
+| **Debug statements** | `console.log`, `debugger`, `it.only` / `describe.only`, `pdb`, `binding.pry` | ⚠️ warns |
+| **Protected branches** | Committing straight to `main` / `master` | ⚠️ warns |
+| **TODO / FIXME** | Newly added TODOs | off |
+| **Trailing whitespace** · **Final newline** | Both can be fixed automatically | off |
+| **Branch naming** | e.g. `feature/…`, `fix/…` | off |
+| **Commit message** | Conventional Commits, required ticket IDs (`ABC-123`), length limits | off |
+| **Your own commands** | Any shell command, filtered by glob, at pre-commit, commit-msg or pre-push | — |
+
+> "auto" means the check runs when Tollgate finds that tool's config in your project. It doesn't run twice if one of your `package.json` scripts already calls the tool.
+
+### Your results
+
+The **Checks** view in the Activity Bar shows every check for each git hook. It also shows disabled checks, so you can turn them on in one click. Hover a check to run it again or disable it. Right-click to change its severity.
+
+<p align="center"><img src="images/checks-panel.png" width="420" alt="The Tollgate Checks view"></p>
+
+Every finding also appears in the **Problems** panel, with the check that raised it:
+
+![Findings in the Problems panel](images/problems.png)
+
+### Configure without leaving the editor
+
+Use **Tollgate: Enable / Disable Checks…** to pick checks from a list:
+
+![Enable or disable checks from a quick pick](images/enable-checks.png)
+
+…or edit `.tollgaterc.json`, which has full autocomplete and an explanation for every option:
+
+![Autocomplete in .tollgaterc.json](images/config-intellisense.png)
 
 ## Getting started
 
-1. Install the extension (`code --install-extension precommit-guard-1.0.0.vsix`, or *Extensions → … → Install from VSIX*).
-2. Open a git repository. When prompted, click **Install hooks**. You can also run **Pre-Commit Guard: Install Git Hooks** yourself.
-3. Commit as usual. To run checks without committing, use the ▶ button in the **Pre-Commit Guard** view (Source Control panel).
+1. **Install** Tollgate from the Marketplace.
+2. **Open a git repository.** Tollgate offers to install its git hooks. Click **Install hooks**.
+3. **Commit as usual.** If a blocking check fails, the commit is stopped and Tollgate shows you why.
+
+Want to check before you commit? Click ▶ in the Tollgate view, or run **Tollgate: Run Checks on Staged Changes**.
+
+**Requirements:** Git, and a workspace you trust. Tollgate runs commands from the repository, so it is turned off in Restricted Mode. The hooks use Node.js from your `PATH`, or VS Code's built-in runtime if Node isn't installed.
 
 ## Configuration
 
-Settings are merged in this order (later wins):
-
-`defaults → preset (extends) → VS Code settings → package.json "precommitGuard" → .precommitrc.json → .precommitrc.local.json`
-
-The fastest way to configure is from the UI: **Enable / Disable Checks…**, **Add Custom Check…**, **Choose Preset…**. Changes go to `.precommitrc.json` if it exists, otherwise to workspace settings. The `precommitGuard.configTarget` setting controls this. Both files get autocomplete and validation from a JSON schema.
+Most people never need to edit config: change things from the Tollgate view and command palette. To share rules with your team, run **Tollgate: Create / Open .tollgaterc.json** and commit the file.
 
 ```jsonc
-// .precommitrc.json
+// .tollgaterc.json
 {
-  "extends": "recommended",
-  "failOn": "error",               // "warning" makes warnings block too
+  "extends": "recommended",          // minimal | recommended | strict | none
+  "failOn": "error",                 // set to "warning" to block on warnings too
   "checks": {
-    "npmScripts": { "scripts": ["lint", "typecheck", "test"], "scope": "affected" },
-    "biome": { "mode": "check", "applyFixes": true },
+    "npmScripts": { "scripts": ["lint", "typecheck", "test"] },
+    "prettier": { "applyFixes": true },              // format & re-stage instead of failing
     "secrets": { "allowlist": ["EXAMPLE_KEY"] },
     "debugStatements": { "severity": "error" },
     "protectedBranches": { "branches": ["main", "release/*"], "severity": "error" },
@@ -53,76 +97,92 @@ The fastest way to configure is from the UI: **Enable / Disable Checks…**, **A
   },
   "custom": [
     { "name": "Stylelint", "command": "npx stylelint {files}", "glob": "**/*.{css,scss}" },
-    { "name": "Prettier", "command": "npx prettier --write {files}", "glob": "**/*.{ts,tsx,md}", "restage": true },
     { "name": "Unit tests", "command": "npm test", "stage": "pre-push" }
   ]
 }
 ```
 
-### Built-in checks
+**Where settings come from** (later ones win): built-in defaults → preset → your VS Code settings (`tollgate.*`) → `"tollgate"` key in `package.json` → `.tollgaterc.json` (shared) → `.tollgaterc.local.json` (personal, add it to `.gitignore`).
 
-| id | Default (recommended) | What it does |
-|---|---|---|
-| `npmScripts` | on, error | Runs matching package.json scripts when relevant files are staged |
-| `biome` | auto, error | `biome check` on staged files when Biome is configured |
-| `lintStaged` | auto, error | Runs lint-staged when configured |
-| `secrets` | on, error | Detects keys, tokens and credentials |
-| `conflictMarkers` | on, error | `<<<<<<<`, `>>>>>>>`, `=======` |
-| `jsonSyntax` | on, error | Staged `.json` must parse |
-| `largeFiles` | on, error | Files over `maxSizeKB` (1024) |
-| `forbiddenFiles` | on, error | `.env`, keys, certificates… |
-| `debugStatements` | on, warning | console.log, debugger, `.only`, pdb… |
-| `protectedBranches` | on, warning | Direct commits to main/master |
-| `todoComments` | off | New TODO/FIXME |
-| `trailingWhitespace` | off | Auto-fixable |
-| `eofNewline` | off | Auto-fixable |
-| `branchName` | off | Branch must match a pattern |
-| `commitMessage` | off | Conventional Commits, tickets, length |
+### Presets
+
+| Preset | What you get |
+| --- | --- |
+| `minimal` | Secrets, conflict markers, large and forbidden files, your `lint` script, and the auto-detected tools (Biome in lint-only mode) |
+| `recommended` *(default)* | Everything in the "Default" column of the table above |
+| `strict` | Recommended, plus whitespace, final newline, TODOs, branch naming, Conventional Commits and your `test` script. Debug statements block instead of warning. |
+| `none` | Nothing. Only the checks you turn on yourself. |
+
+### Custom checks
+
+Run **Tollgate: Add Custom Check…**, or add an entry under `custom`. Your command can use these placeholders:
+
+| Placeholder | Becomes |
+| --- | --- |
+| `{files}` | Staged files matching `glob` (quoted, and split into batches for long lists) |
+| `{root}` | Repository root |
+| `{branch}` | Current branch |
+| `{msgFile}` | Path to the commit message file (commit-msg stage) |
+| `{stagedCount}` | Number of matching staged files |
+
+Set `"restage": true` for formatters that rewrite files, so their changes are included in the commit. Files that also have unstaged edits are never re-staged automatically.
 
 ### Skipping checks
 
-- Ignore a single line: add `precommit-guard-ignore` (or `pragma: allowlist secret`) as a comment on that line.
-- Skip some checks for one commit: `SKIP=secrets,npmScripts git commit -m "…"`
-- Skip everything for one commit: `git commit --no-verify`
-- Pause for the workspace: **Pre-Commit Guard: Pause / Resume Checks**
+| To… | Do this |
+| --- | --- |
+| Ignore one line | Add a `tollgate-ignore` comment on that line (`pragma: allowlist secret` also works) |
+| Skip some checks for one commit | `SKIP=secrets,prettier git commit -m "…"` |
+| Skip everything for one commit | `git commit --no-verify` |
+| Pause Tollgate in this workspace | **Tollgate: Pause / Resume Checks** |
 
-### Auto-fix
+The terminal output always lists the IDs of the checks that failed, so you can copy them straight into `SKIP=`.
 
-Set `"autoFix": true` and enable `trailingWhitespace` / `eofNewline`. The hook will then fix those problems and re-stage the files. Files with unstaged changes are never re-staged. You can also run **Auto-fix Whitespace & EOF in Staged Files** on demand.
+### Editor settings
 
-## Command line
+| Setting | Default | Description |
+| --- | --- | --- |
+| `tollgate.autoInstallHooks` | `prompt` | `prompt`, `always` or `never` |
+| `tollgate.notifyOn` | `failure` | When to show a notification after a hook runs: `failure`, `all`, `never` |
+| `tollgate.showDiagnostics` | `true` | Show findings in the Problems panel |
+| `tollgate.showStatusBar` | `true` | Show the status bar item |
+| `tollgate.showDisabledChecks` | `true` | List disabled checks in the Checks view |
+| `tollgate.configTarget` | `auto` | Where UI changes are saved: `.tollgaterc.json` if it exists, otherwise workspace settings |
 
-The runner is copied to `.git/precommit-guard/runner.js` and works on its own:
+All `.tollgaterc.json` options (`checks`, `custom`, `extends`, `failOn`, `exclude`, `hooks`, `autoFix`, …) can also be set as `tollgate.*` VS Code settings.
 
-```sh
-node .git/precommit-guard/runner.js run            # check staged changes
-node .git/precommit-guard/runner.js run --all      # check every tracked file
-node .git/precommit-guard/runner.js run --only secrets,biome --json
-node .git/precommit-guard/runner.js config         # show resolved config and sources
-node .git/precommit-guard/runner.js fix
-```
+## Works with your existing setup
 
-## How it works
+- **Existing git hooks** are kept and run before Tollgate's checks.
+- **Husky / `core.hooksPath`:** run **Tollgate: Integrate with Husky** to add a one-line call to your Husky hooks. That line does nothing for teammates who don't have Tollgate, so it's safe to commit.
+- **Monorepos:** set `"npmScripts": { "scope": "affected" }` to run scripts only in the packages your staged files belong to.
 
-```
-VS Code extension ──installs──▶ .git/hooks/{pre-commit,commit-msg,pre-push}  (sh)
-        │                                │
-        │ snapshots settings             ▼
-        └──────────▶ .git/precommit-guard/ runner.js  ──writes──▶ last-<stage>.json
-                                                                       │
-                       results view · Problems · status bar ◀── watches┘
-```
+## Using it without VS Code
 
-The hook uses `node` from your PATH. If node isn't there, it falls back to VS Code's bundled runtime. If the runner is missing or crashes, the hook never blocks your commit.
-
-## Development
+The hook runner is a single file in your repo's `.git` folder. You can use it in scripts or CI:
 
 ```sh
-npm install
-npm run build      # schema + esbuild bundle
-npm run lint       # Biome
-npm test           # unit + end-to-end git tests + extension smoke test
-npm run package    # → precommit-guard-x.y.z.vsix
+node .git/tollgate/runner.js run            # check staged changes
+node .git/tollgate/runner.js run --all      # check every tracked file
+node .git/tollgate/runner.js run --only secrets,biome --json
+node .git/tollgate/runner.js config         # show the resolved config and which sources it was built from
 ```
 
-Press <kbd>F5</kbd> to launch an Extension Development Host.
+## FAQ
+
+**Will Tollgate ever block a commit because Tollgate itself broke?**
+No. If the runner is missing or crashes, the hook lets the commit through and prints a message.
+
+**Does it slow down my commits?**
+The built-in checks only read staged changes and take milliseconds. Your scripts (lint, typecheck) run in parallel, and only when relevant files are staged. A commit that only touches a README doesn't run your linter.
+
+**Can my team use it without the extension?**
+Yes, for Husky users: integrate once and commit the hook line. Teammates without the extension skip it silently.
+
+## Feedback
+
+Found a bug or have an idea? [Open an issue](https://github.com/darkace01/tollgate/issues). If Tollgate saves you from committing a secret, a ⭐ on the [repo](https://github.com/darkace01/tollgate) is appreciated.
+
+## License
+
+[MIT](LICENSE)

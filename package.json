@@ -1,30 +1,69 @@
 {
-  "name": "precommit-guard",
-  "displayName": "Pre-Commit Guard",
-  "description": "Customisable pre-commit checks for VS Code and the terminal: runs your package.json lint/typecheck scripts, detects secrets, debug statements, conflict markers, large or forbidden files, enforces branch and commit message rules, and runs any custom command.",
+  "name": "tollgate",
+  "displayName": "Tollgate — Pre-Commit Checks",
+  "description": "Pre-commit checks that just work: runs your lint, typecheck, Biome and Prettier, blocks secrets, debug code, conflict markers and large files, and enforces commit message rules — from VS Code or the terminal.",
   "version": "1.0.0",
-  "publisher": "10star",
+  "publisher": "darkace01",
+  "author": {
+    "name": "Kazeem Quadri"
+  },
   "license": "MIT",
   "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1B2547",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/darkace01/tollgate#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/darkace01/tollgate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/darkace01/tollgate/issues"
+  },
+  "qna": "marketplace",
+  "pricing": "Free",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Linters",
+    "Formatters",
     "SCM Providers",
     "Other"
   ],
   "keywords": [
     "pre-commit",
+    "precommit",
     "git hooks",
-    "lint",
     "husky",
     "lint-staged",
+    "lint",
+    "eslint",
+    "biome",
+    "prettier",
     "secrets",
+    "secret scanning",
     "commit message",
     "conventional commits",
-    "eslint"
+    "commitlint",
+    "code quality",
+    "typescript",
+    "git"
   ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Tollgate runs commands from the repository (package.json scripts, custom checks), so it only runs in trusted workspaces."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Tollgate needs a local git repository and file system."
+    }
+  },
   "activationEvents": [
     "onStartupFinished",
     "workspaceContains:.git"
@@ -33,318 +72,318 @@
   "contributes": {
     "commands": [
       {
-        "command": "precommitGuard.run",
+        "command": "tollgate.run",
         "title": "Run Checks on Staged Changes",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(play)"
       },
       {
-        "command": "precommitGuard.runAll",
+        "command": "tollgate.runAll",
         "title": "Run Checks on All Files",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(run-all)"
       },
       {
-        "command": "precommitGuard.runPrePush",
+        "command": "tollgate.runPrePush",
         "title": "Run Pre-Push Checks",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(cloud-upload)"
       },
       {
-        "command": "precommitGuard.runCheck",
+        "command": "tollgate.runCheck",
         "title": "Run This Check",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(play)"
       },
       {
-        "command": "precommitGuard.cancel",
+        "command": "tollgate.cancel",
         "title": "Cancel Running Checks",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "precommitGuard.configureChecks",
+        "command": "tollgate.configureChecks",
         "title": "Enable / Disable Checks…",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(checklist)"
       },
       {
-        "command": "precommitGuard.addCustomCheck",
+        "command": "tollgate.addCustomCheck",
         "title": "Add Custom Check…",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(add)"
       },
       {
-        "command": "precommitGuard.selectPreset",
+        "command": "tollgate.selectPreset",
         "title": "Choose Preset…",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(layers)"
       },
       {
-        "command": "precommitGuard.toggleCheck",
+        "command": "tollgate.toggleCheck",
         "title": "Toggle Check",
-        "category": "Pre-Commit Guard"
+        "category": "Tollgate"
       },
       {
-        "command": "precommitGuard.disableCheck",
+        "command": "tollgate.disableCheck",
         "title": "Disable Check",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(eye-closed)"
       },
       {
-        "command": "precommitGuard.enableCheck",
+        "command": "tollgate.enableCheck",
         "title": "Enable Check",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(eye)"
       },
       {
-        "command": "precommitGuard.setSeverity",
+        "command": "tollgate.setSeverity",
         "title": "Change Severity…",
-        "category": "Pre-Commit Guard"
+        "category": "Tollgate"
       },
       {
-        "command": "precommitGuard.fix",
+        "command": "tollgate.fix",
         "title": "Auto-fix Whitespace & EOF in Staged Files",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(wand)"
       },
       {
-        "command": "precommitGuard.installHooks",
+        "command": "tollgate.installHooks",
         "title": "Install Git Hooks",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(plug)"
       },
       {
-        "command": "precommitGuard.uninstallHooks",
+        "command": "tollgate.uninstallHooks",
         "title": "Uninstall Git Hooks",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(debug-disconnect)"
       },
       {
-        "command": "precommitGuard.integrateHusky",
+        "command": "tollgate.integrateHusky",
         "title": "Integrate with Husky / core.hooksPath",
-        "category": "Pre-Commit Guard"
+        "category": "Tollgate"
       },
       {
-        "command": "precommitGuard.togglePause",
+        "command": "tollgate.togglePause",
         "title": "Pause / Resume Checks",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(debug-pause)"
       },
       {
-        "command": "precommitGuard.createConfig",
-        "title": "Create / Open .precommitrc.json",
-        "category": "Pre-Commit Guard",
+        "command": "tollgate.createConfig",
+        "title": "Create / Open .tollgaterc.json",
+        "category": "Tollgate",
         "icon": "$(new-file)"
       },
       {
-        "command": "precommitGuard.showResolvedConfig",
+        "command": "tollgate.showResolvedConfig",
         "title": "Show Resolved Configuration",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(json)"
       },
       {
-        "command": "precommitGuard.openSettings",
+        "command": "tollgate.openSettings",
         "title": "Open Settings",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(gear)"
       },
       {
-        "command": "precommitGuard.showOutput",
+        "command": "tollgate.showOutput",
         "title": "Show Output",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(output)"
       },
       {
-        "command": "precommitGuard.showCheckOutput",
+        "command": "tollgate.showCheckOutput",
         "title": "Show Check Output",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(output)"
       },
       {
-        "command": "precommitGuard.clearResults",
+        "command": "tollgate.clearResults",
         "title": "Clear Results",
-        "category": "Pre-Commit Guard",
+        "category": "Tollgate",
         "icon": "$(clear-all)"
       }
     ],
     "views": {
-      "scm": [
+      "tollgate": [
         {
-          "id": "precommitGuard.results",
-          "name": "Pre-Commit Guard",
-          "icon": "media/shield.svg",
-          "contextualTitle": "Pre-Commit Guard"
+          "id": "tollgate.results",
+          "name": "Checks",
+          "icon": "media/tollgate.svg",
+          "contextualTitle": "Tollgate"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "precommitGuard.results",
-        "contents": "Open a folder that is a git repository to use Pre-Commit Guard.\n[Open Folder](command:vscode.openFolder)",
-        "when": "!precommitGuard.hasRepo"
+        "view": "tollgate.results",
+        "contents": "Open a folder that is a git repository to start checking your commits.\n[Open Folder](command:workbench.action.files.openFolder)",
+        "when": "!tollgate.hasRepo"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "precommitGuard.run",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.run",
+          "when": "view == tollgate.results",
           "group": "navigation@1"
         },
         {
-          "command": "precommitGuard.runAll",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.runAll",
+          "when": "view == tollgate.results",
           "group": "navigation@2"
         },
         {
-          "command": "precommitGuard.configureChecks",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.configureChecks",
+          "when": "view == tollgate.results",
           "group": "navigation@3"
         },
         {
-          "command": "precommitGuard.addCustomCheck",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.addCustomCheck",
+          "when": "view == tollgate.results",
           "group": "navigation@4"
         },
         {
-          "command": "precommitGuard.runPrePush",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.runPrePush",
+          "when": "view == tollgate.results",
           "group": "1_run@1"
         },
         {
-          "command": "precommitGuard.fix",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.fix",
+          "when": "view == tollgate.results",
           "group": "1_run@2"
         },
         {
-          "command": "precommitGuard.cancel",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.cancel",
+          "when": "view == tollgate.results",
           "group": "1_run@3"
         },
         {
-          "command": "precommitGuard.selectPreset",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.selectPreset",
+          "when": "view == tollgate.results",
           "group": "2_config@1"
         },
         {
-          "command": "precommitGuard.createConfig",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.createConfig",
+          "when": "view == tollgate.results",
           "group": "2_config@2"
         },
         {
-          "command": "precommitGuard.showResolvedConfig",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.showResolvedConfig",
+          "when": "view == tollgate.results",
           "group": "2_config@3"
         },
         {
-          "command": "precommitGuard.openSettings",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.openSettings",
+          "when": "view == tollgate.results",
           "group": "2_config@4"
         },
         {
-          "command": "precommitGuard.togglePause",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.togglePause",
+          "when": "view == tollgate.results",
           "group": "2_config@5"
         },
         {
-          "command": "precommitGuard.installHooks",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.installHooks",
+          "when": "view == tollgate.results",
           "group": "3_hooks@1"
         },
         {
-          "command": "precommitGuard.integrateHusky",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.integrateHusky",
+          "when": "view == tollgate.results",
           "group": "3_hooks@2"
         },
         {
-          "command": "precommitGuard.uninstallHooks",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.uninstallHooks",
+          "when": "view == tollgate.results",
           "group": "3_hooks@3"
         },
         {
-          "command": "precommitGuard.showOutput",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.showOutput",
+          "when": "view == tollgate.results",
           "group": "4_misc@1"
         },
         {
-          "command": "precommitGuard.clearResults",
-          "when": "view == precommitGuard.results",
+          "command": "tollgate.clearResults",
+          "when": "view == tollgate.results",
           "group": "4_misc@2"
         }
       ],
       "view/item/context": [
         {
-          "command": "precommitGuard.runCheck",
-          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.enabled/",
+          "command": "tollgate.runCheck",
+          "when": "view == tollgate.results && viewItem =~ /^check\\..*\\.enabled/",
           "group": "inline@1"
         },
         {
-          "command": "precommitGuard.disableCheck",
-          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.enabled/",
+          "command": "tollgate.disableCheck",
+          "when": "view == tollgate.results && viewItem =~ /^check\\..*\\.enabled/",
           "group": "inline@2"
         },
         {
-          "command": "precommitGuard.enableCheck",
-          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.disabled/",
+          "command": "tollgate.enableCheck",
+          "when": "view == tollgate.results && viewItem =~ /^check\\..*\\.disabled/",
           "group": "inline@2"
         },
         {
-          "command": "precommitGuard.runCheck",
-          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.enabled/",
+          "command": "tollgate.runCheck",
+          "when": "view == tollgate.results && viewItem =~ /^check\\..*\\.enabled/",
           "group": "1@1"
         },
         {
-          "command": "precommitGuard.disableCheck",
-          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.enabled/",
+          "command": "tollgate.disableCheck",
+          "when": "view == tollgate.results && viewItem =~ /^check\\..*\\.enabled/",
           "group": "1@2"
         },
         {
-          "command": "precommitGuard.enableCheck",
-          "when": "view == precommitGuard.results && viewItem =~ /^check\\..*\\.disabled/",
+          "command": "tollgate.enableCheck",
+          "when": "view == tollgate.results && viewItem =~ /^check\\..*\\.disabled/",
           "group": "1@2"
         },
         {
-          "command": "precommitGuard.setSeverity",
-          "when": "view == precommitGuard.results && viewItem =~ /^check\\.(builtin|custom)/",
+          "command": "tollgate.setSeverity",
+          "when": "view == tollgate.results && viewItem =~ /^check\\.(builtin|custom)/",
           "group": "1@3"
         },
         {
-          "command": "precommitGuard.fix",
-          "when": "view == precommitGuard.results && viewItem =~ /\\.fixable$/",
+          "command": "tollgate.fix",
+          "when": "view == tollgate.results && viewItem =~ /\\.fixable$/",
           "group": "inline@0"
         }
       ],
       "scm/title": [
         {
-          "command": "precommitGuard.run",
+          "command": "tollgate.run",
           "when": "scmProvider == git",
           "group": "navigation@-1"
         }
       ],
       "commandPalette": [
         {
-          "command": "precommitGuard.runCheck",
+          "command": "tollgate.runCheck",
           "when": "false"
         },
         {
-          "command": "precommitGuard.toggleCheck",
+          "command": "tollgate.toggleCheck",
           "when": "false"
         },
         {
-          "command": "precommitGuard.disableCheck",
+          "command": "tollgate.disableCheck",
           "when": "false"
         },
         {
-          "command": "precommitGuard.enableCheck",
+          "command": "tollgate.enableCheck",
           "when": "false"
         },
         {
-          "command": "precommitGuard.setSeverity",
+          "command": "tollgate.setSeverity",
           "when": "false"
         },
         {
-          "command": "precommitGuard.showCheckOutput",
+          "command": "tollgate.showCheckOutput",
           "when": "false"
         }
       ]
@@ -352,23 +391,23 @@
     "jsonValidation": [
       {
         "fileMatch": [
-          ".precommitrc.json",
-          ".precommitrc.local.json"
+          ".tollgaterc.json",
+          ".tollgaterc.local.json"
         ],
-        "url": "./schemas/precommitrc.schema.json"
+        "url": "./schemas/tollgaterc.schema.json"
       }
     ],
     "configuration": {
-      "title": "Pre-Commit Guard",
+      "title": "Tollgate",
       "properties": {
-        "precommitGuard.enabled": {
+        "tollgate.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Master switch. Set false to pause all checks.",
           "order": 0,
           "scope": "resource"
         },
-        "precommitGuard.extends": {
+        "tollgate.extends": {
           "type": "string",
           "enum": [
             "minimal",
@@ -381,7 +420,7 @@
           "order": 1,
           "scope": "resource"
         },
-        "precommitGuard.failOn": {
+        "tollgate.failOn": {
           "type": "string",
           "enum": [
             "error",
@@ -392,14 +431,14 @@
           "order": 2,
           "scope": "resource"
         },
-        "precommitGuard.stopOnFirstFailure": {
+        "tollgate.stopOnFirstFailure": {
           "type": "boolean",
           "default": false,
           "description": "Stop remaining checks after the first blocking failure.",
           "order": 3,
           "scope": "resource"
         },
-        "precommitGuard.concurrency": {
+        "tollgate.concurrency": {
           "type": "number",
           "minimum": 1,
           "maximum": 16,
@@ -408,7 +447,7 @@
           "order": 4,
           "scope": "resource"
         },
-        "precommitGuard.exclude": {
+        "tollgate.exclude": {
           "type": "array",
           "items": {
             "type": "string"
@@ -417,7 +456,7 @@
           "order": 5,
           "scope": "resource"
         },
-        "precommitGuard.packageManager": {
+        "tollgate.packageManager": {
           "type": "string",
           "enum": [
             "auto",
@@ -431,14 +470,14 @@
           "order": 6,
           "scope": "resource"
         },
-        "precommitGuard.autoFix": {
+        "tollgate.autoFix": {
           "type": "boolean",
           "default": false,
           "description": "In the hook, auto-fix trailing whitespace / EOF newlines (when those checks are enabled) and re-stage fully-staged files.",
           "order": 7,
           "scope": "resource"
         },
-        "precommitGuard.hooks": {
+        "tollgate.hooks": {
           "type": "array",
           "items": {
             "type": "string",
@@ -458,7 +497,7 @@
           "order": 8,
           "scope": "resource"
         },
-        "precommitGuard.checks": {
+        "tollgate.checks": {
           "type": "object",
           "description": "Built-in checks. Each one can be enabled/disabled and tuned. Unset values come from the preset.",
           "additionalProperties": false,
@@ -573,6 +612,57 @@
                     "warning"
                   ],
                   "description": "`error` blocks the commit, `warning` only reports."
+                },
+                "timeoutSec": {
+                  "type": "number",
+                  "minimum": 1,
+                  "default": 300
+                }
+              }
+            },
+            "prettier": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Run Prettier (https://prettier.io) on staged files.",
+              "properties": {
+                "enabled": {
+                  "oneOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "auto"
+                    }
+                  ],
+                  "description": "`auto` runs when a Prettier config (.prettierrc*, prettier.config.*, package.json \"prettier\") or the prettier dependency exists, and no package.json script already runs prettier.",
+                  "default": "auto"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "description": "`error` blocks the commit, `warning` only reports."
+                },
+                "applyFixes": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Format fully-staged files with --write and re-stage them (partially-staged files are only checked)."
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Globs Prettier should skip (in addition to .prettierignore)."
+                },
+                "extraArgs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Extra CLI arguments, e.g. [\"--config\", \"config/.prettierrc\"]."
                 },
                 "timeoutSec": {
                   "type": "number",
@@ -699,14 +789,14 @@
                       }
                     }
                   },
-                  "description": "Additional secret patterns."
+                  "description": "Additional secret patterns. If a pattern has a capture group, group 1 is treated as the secret value (placeholders such as \"changeme\" or \"${VAR}\" are then ignored)."
                 },
                 "allowlist": {
                   "type": "array",
                   "items": {
                     "type": "string"
                   },
-                  "description": "Regexes; matching lines are ignored. Inline: add `precommit-guard-ignore` or `pragma: allowlist secret` to a line."
+                  "description": "Regexes; matching lines are ignored. Inline: add `tollgate-ignore` or `pragma: allowlist secret` to a line."
                 }
               }
             },
@@ -1147,11 +1237,11 @@
             }
           },
           "order": 9,
-          "markdownDescription": "Built-in checks. Edit in settings.json, e.g. `\"precommitGuard.checks\": { \"todoComments\": { \"enabled\": true } }`. Values in `.precommitrc.json` take precedence.",
+          "markdownDescription": "Built-in checks. Edit in settings.json, e.g. `\"tollgate.checks\": { \"todoComments\": { \"enabled\": true } }`. Values in `.tollgaterc.json` take precedence.",
           "default": {},
           "scope": "resource"
         },
-        "precommitGuard.custom": {
+        "tollgate.custom": {
           "type": "array",
           "description": "Your own checks: any shell command. Placeholders: {files} (matching staged files), {root}, {branch}, {msgFile}, {stagedCount}.",
           "items": {
@@ -1238,7 +1328,7 @@
           "markdownDescription": "Custom command checks. Example: `{ \"name\": \"Prettier\", \"command\": \"npx prettier --check {files}\", \"glob\": \"**/*.{ts,tsx}\" }`",
           "scope": "resource"
         },
-        "precommitGuard.autoInstallHooks": {
+        "tollgate.autoInstallHooks": {
           "type": "string",
           "enum": [
             "prompt",
@@ -1254,7 +1344,7 @@
           "description": "Install git hooks automatically when a repository is opened.",
           "order": 11
         },
-        "precommitGuard.notifyOn": {
+        "tollgate.notifyOn": {
           "type": "string",
           "enum": [
             "failure",
@@ -1265,25 +1355,25 @@
           "description": "When to show a notification after a git hook runs.",
           "order": 12
         },
-        "precommitGuard.showDiagnostics": {
+        "tollgate.showDiagnostics": {
           "type": "boolean",
           "default": true,
           "description": "Show findings in the Problems panel.",
           "order": 13
         },
-        "precommitGuard.showStatusBar": {
+        "tollgate.showStatusBar": {
           "type": "boolean",
           "default": true,
           "description": "Show the status bar item.",
           "order": 14
         },
-        "precommitGuard.showDisabledChecks": {
+        "tollgate.showDisabledChecks": {
           "type": "boolean",
           "default": true,
-          "description": "List disabled checks in the Pre-Commit Guard view so they can be enabled with one click.",
+          "description": "List disabled checks in the Tollgate view so they can be enabled with one click.",
           "order": 15
         },
-        "precommitGuard.configTarget": {
+        "tollgate.configTarget": {
           "type": "string",
           "enum": [
             "auto",
@@ -1292,14 +1382,23 @@
           ],
           "default": "auto",
           "enumDescriptions": [
-            ".precommitrc.json if it exists, otherwise workspace settings",
+            ".tollgaterc.json if it exists, otherwise workspace settings",
             "Always workspace settings",
-            "Always .precommitrc.json"
+            "Always .tollgaterc.json"
           ],
           "description": "Where changes made from the UI (toggle, add check, preset) are saved.",
           "order": 16
         }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tollgate",
+          "title": "Tollgate",
+          "icon": "media/tollgate.svg"
+        }
+      ]
     }
   },
   "scripts": {
@@ -1313,7 +1412,9 @@
     "vscode:prepublish": "npm run schema && node scripts/build.js --production",
     "pretest": "npm run build && tsc -p .",
     "test": "node --test --test-concurrency=1 out/test/core.test.js out/test/e2e.test.js && node test/smoke.js",
-    "package": "vsce package --no-dependencies --allow-missing-repository"
+    "package": "vsce package --no-dependencies",
+    "publish:vsce": "vsce publish --no-dependencies",
+    "publish:ovsx": "ovsx publish --no-dependencies"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
@@ -1322,6 +1423,8 @@
     "@vscode/test-electron": "^2.4.1",
     "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
+    "ovsx": "^1.3.0",
+    "prettier": "^3.3.3",
     "typescript": "5.6"
   }
 }

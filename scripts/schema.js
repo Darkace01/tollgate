@@ -1,5 +1,5 @@
 // Single source of truth for the configuration schema.
-// `node scripts/schema.js` writes schemas/precommitrc.schema.json and syncs package.json "contributes.configuration".
+// `node scripts/schema.js` writes schemas/tollgaterc.schema.json and syncs package.json "contributes.configuration".
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -67,6 +67,28 @@ const checks = {
         timeoutSec: { type: 'number', minimum: 1, default: 300 },
       },
     },
+    prettier: {
+      type: 'object',
+      additionalProperties: false,
+      description: 'Run Prettier (https://prettier.io) on staged files.',
+      properties: {
+        enabled: {
+          oneOf: [{ type: 'boolean' }, { const: 'auto' }],
+          description:
+            '`auto` runs when a Prettier config (.prettierrc*, prettier.config.*, package.json "prettier") or the prettier dependency exists, and no package.json script already runs prettier.',
+          default: 'auto',
+        },
+        severity,
+        applyFixes: {
+          type: 'boolean',
+          default: false,
+          description: 'Format fully-staged files with --write and re-stage them (partially-staged files are only checked).',
+        },
+        exclude: globs('Globs Prettier should skip (in addition to .prettierignore).'),
+        extraArgs: { type: 'array', items: { type: 'string' }, description: 'Extra CLI arguments, e.g. ["--config", "config/.prettierrc"].' },
+        timeoutSec: { type: 'number', minimum: 1, default: 300 },
+      },
+    },
     biome: {
       type: 'object',
       additionalProperties: false,
@@ -87,11 +109,16 @@ const checks = {
     secrets: base(
       'Detect API keys, tokens, private keys and hard-coded credentials in added lines.',
       {
-        extraPatterns: { type: 'array', items: patternRule, description: 'Additional secret patterns.' },
+        extraPatterns: {
+          type: 'array',
+          items: patternRule,
+          description:
+            'Additional secret patterns. If a pattern has a capture group, group 1 is treated as the secret value (placeholders such as "changeme" or "${VAR}" are then ignored).',
+        },
         allowlist: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Regexes; matching lines are ignored. Inline: add `precommit-guard-ignore` or `pragma: allowlist secret` to a line.',
+          description: 'Regexes; matching lines are ignored. Inline: add `tollgate-ignore` or `pragma: allowlist secret` to a line.',
         },
       },
       { enabled: true, severity: 'error' },
@@ -212,7 +239,7 @@ const top = {
 
 const schema = {
   $schema: 'http://json-schema.org/draft-07/schema#',
-  title: 'Pre-Commit Guard configuration',
+  title: 'Tollgate configuration',
   type: 'object',
   additionalProperties: false,
   properties: { $schema: { type: 'string' }, ...top },
@@ -220,7 +247,7 @@ const schema = {
 
 const root = path.join(__dirname, '..');
 fs.mkdirSync(path.join(root, 'schemas'), { recursive: true });
-fs.writeFileSync(path.join(root, 'schemas', 'precommitrc.schema.json'), JSON.stringify(schema, null, 2) + '\n');
+fs.writeFileSync(path.join(root, 'schemas', 'tollgaterc.schema.json'), JSON.stringify(schema, null, 2) + '\n');
 
 // VS Code settings: shared config keys + editor-only UI keys.
 const uiOnly = {
@@ -237,13 +264,13 @@ const uiOnly = {
   showDisabledChecks: {
     type: 'boolean',
     default: true,
-    description: 'List disabled checks in the Pre-Commit Guard view so they can be enabled with one click.',
+    description: 'List disabled checks in the Tollgate view so they can be enabled with one click.',
   },
   configTarget: {
     type: 'string',
     enum: ['auto', 'settings', 'file'],
     default: 'auto',
-    enumDescriptions: ['.precommitrc.json if it exists, otherwise workspace settings', 'Always workspace settings', 'Always .precommitrc.json'],
+    enumDescriptions: ['.tollgaterc.json if it exists, otherwise workspace settings', 'Always workspace settings', 'Always .tollgaterc.json'],
     description: 'Where changes made from the UI (toggle, add check, preset) are saved.',
   },
 };
@@ -253,7 +280,7 @@ for (const [k, v] of Object.entries({ ...top, ...uiOnly })) {
   const p = { ...v, order: order++ };
   if (k === 'checks') {
     p.markdownDescription =
-      'Built-in checks. Edit in settings.json, e.g. `"precommitGuard.checks": { "todoComments": { "enabled": true } }`. Values in `.precommitrc.json` take precedence.';
+      'Built-in checks. Edit in settings.json, e.g. `"tollgate.checks": { "todoComments": { "enabled": true } }`. Values in `.tollgaterc.json` take precedence.';
     p.default = {};
   }
   if (k === 'custom')
@@ -261,10 +288,10 @@ for (const [k, v] of Object.entries({ ...top, ...uiOnly })) {
   if (p.default === undefined) p.default = undefined;
   if (['enabled', 'extends', 'failOn', 'hooks', 'checks', 'custom', 'exclude', 'autoFix', 'packageManager', 'stopOnFirstFailure', 'concurrency'].includes(k))
     p.scope = 'resource';
-  properties[`precommitGuard.${k}`] = p;
+  properties[`tollgate.${k}`] = p;
 }
 const pkgFile = path.join(root, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'));
-pkg.contributes.configuration = { title: 'Pre-Commit Guard', properties };
+pkg.contributes.configuration = { title: 'Tollgate', properties };
 fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n');
 console.log('schema + package.json configuration synced');

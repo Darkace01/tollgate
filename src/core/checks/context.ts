@@ -34,7 +34,7 @@ export interface CheckDef {
   run(ctx: CheckContext): Promise<CheckOutcome>;
 }
 
-export const INLINE_IGNORE = /precommit-guard-ignore|pragma:\s*allowlist secret|gitleaks:allow/;
+export const INLINE_IGNORE = /tollgate-ignore|pragma:\s*allowlist secret|gitleaks:allow/;
 
 export function isExcluded(ctx: CheckContext, file: string, extra?: string[]): boolean {
   return matchesAny(file, ctx.config.exclude) || (!!extra && matchesAny(file, extra));

@@ -1,0 +1,39 @@
+name: Release
+
+# Push a tag like v1.0.1 (matching package.json "version") to publish.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: git config --global user.email ci@example.com && git config --global user.name CI
+      - run: npm ci
+      - name: Check tag matches package.json version
+        run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm run lint
+      - run: npm test
+      - run: npx vsce package --no-dependencies -o tollgate.vsix
+      - name: Publish to VS Code Marketplace
+        run: npx vsce publish --no-dependencies --packagePath tollgate.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Publish to Open VSX (Cursor, VSCodium, Windsurf…)
+        if: ${{ env.OVSX_PAT != '' }}
+        run: npx ovsx publish tollgate.vsix
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: tollgate.vsix
+          generate_release_notes: true

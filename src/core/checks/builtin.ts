@@ -40,16 +40,16 @@ function compile(rule: PatternRule): RegExp | undefined {
 // ---------------------------------------------------------------- secrets
 
 export const SECRET_RULES: PatternRule[] = [
-  { name: 'AWS access key ID', pattern: '\\b(AKIA|ASIA|ABIA|ACCA)[0-9A-Z]{16}\\b' },
-  { name: 'AWS secret access key', pattern: 'aws.{0,20}(secret|private).{0,20}[\'"][0-9a-zA-Z/+]{40}[\'"]', flags: 'i' },
-  { name: 'GitHub token', pattern: '\\b(gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{22,255})\\b' },
+  { name: 'AWS access key ID', pattern: '\\b(?:AKIA|ASIA|ABIA|ACCA)[0-9A-Z]{16}\\b' },
+  { name: 'AWS secret access key', pattern: 'aws.{0,20}(?:secret|private).{0,20}[\'"]([0-9a-zA-Z/+]{40})[\'"]', flags: 'i' },
+  { name: 'GitHub token', pattern: '\\b(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{22,255})\\b' },
   { name: 'GitLab token', pattern: '\\bglpat-[A-Za-z0-9_-]{20,}\\b' },
   { name: 'Slack token', pattern: '\\bxox[abposr]-[A-Za-z0-9-]{10,}' },
   { name: 'Slack webhook', pattern: 'https://hooks\\.slack\\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+' },
-  { name: 'Private key', pattern: '-----BEGIN (RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY( BLOCK)?-----' },
+  { name: 'Private key', pattern: '-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----' },
   { name: 'Google API key', pattern: '\\bAIza[0-9A-Za-z_-]{35}\\b' },
-  { name: 'Stripe key', pattern: '\\b(sk|rk)_(live|test)_[0-9a-zA-Z]{24,}\\b' },
-  { name: 'OpenAI key', pattern: '\\bsk-(proj-|svcacct-)?[A-Za-z0-9_-]{20,}T3BlbkFJ[A-Za-z0-9_-]{20,}' },
+  { name: 'Stripe key', pattern: '\\b(?:sk|rk)_(?:live|test)_[0-9a-zA-Z]{24,}\\b' },
+  { name: 'OpenAI key', pattern: '\\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,}T3BlbkFJ[A-Za-z0-9_-]{20,}' },
   { name: 'Anthropic key', pattern: '\\bsk-ant-[A-Za-z0-9_-]{20,}' },
   { name: 'npm token', pattern: '\\bnpm_[A-Za-z0-9]{36}\\b' },
   { name: 'Azure storage key', pattern: 'AccountKey=[A-Za-z0-9+/=]{80,}' },
@@ -60,7 +60,7 @@ export const SECRET_RULES: PatternRule[] = [
   {
     name: 'Hard-coded credential',
     pattern:
-      '\\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|private[_-]?key)\\b["\']?\\s*[:=]\\s*["\']([^"\'\\s]{8,})["\']',
+      '\\b(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|private[_-]?key)\\b["\']?\\s*[:=]\\s*["\']([^"\'\\s]{8,})["\']',
     flags: 'i',
   },
 ];
@@ -97,7 +97,8 @@ export function secretsCheck(cfg: GuardConfig): CheckDef {
           for (const { r, re } of rules) {
             const m = re!.exec(text);
             if (!m) continue;
-            const value = m[m.length - 1] ?? m[0];
+            // Rules capture the secret value in group 1 when they have one; otherwise the whole match is the value.
+            const value = m[1] ?? m[0];
             if (PLACEHOLDER.test(value) || /process\.env|os\.environ|getenv/i.test(text)) continue;
             push({ file, line, column: m.index + 1, rule: r.name, message: `${r.name}: ${mask(m[0])}${r.message ? ` — ${r.message}` : ''}` });
             break;

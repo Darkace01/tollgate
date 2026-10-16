@@ -93,3 +93,53 @@ test('tool output parsing: tsc, eslint stylish, biome', () => {
   assert.equal(f[2].rule, 'lint/style/useConst');
   assert.equal(f[2].message, 'This let declares a variable that is only assigned once.');
 });
+
+test('secret scanner: detects provider keys, ignores placeholders and env lookups', async () => {
+  const { secretsCheck } = await import('../src/core/checks/builtin');
+  const cfg = baseDefaults();
+  // Fixtures are assembled at runtime so this test file itself never contains a scannable secret.
+  const j = (...parts: string[]) => parts.join('');
+  const lines = [
+    j("const k = 'AKIA", 'IOSFODNN7EXAMPLE', "';"),
+    j("stripe = 'sk_", 'test_4eC39HqLyjWDarjtT1zdp7dc', "'"),
+    j("rk = 'rk_", 'live_', 'a'.repeat(24), "'"),
+    j('token: "gh', 'p_', 'A'.repeat(36), '"'),
+    j('-----BEGIN RSA ', 'PRIVATE KEY-----'),
+    j("password = 'hunter2", "hunter2'"),
+    j('DATABASE_URL=postgres://admin:', 's3cretpw', '@db.example.com/app'),
+    // should be ignored:
+    j("password = 'change", "me'"),
+    j('password: "${', 'DB_PASSWORD}"'),
+    j('apiKey = process.env.', 'API_KEY'),
+    j("const sk = 'sk_", "test_short'"),
+  ];
+  const files = ['src/a.ts'];
+  const ctx = {
+    root: '/',
+    config: cfg,
+    stage: 'pre-commit',
+    mode: 'staged',
+    branch: 'x',
+    signal: new AbortController().signal,
+    pushFiles: async () => [],
+    fileSet: async () => ({
+      mode: 'staged',
+      root: '/',
+      files,
+      addedLines: async () => lines.map((text, i) => ({ line: i + 1, text })),
+      read: async () => undefined,
+      size: async () => 0,
+    }),
+  } as never;
+  const out = await secretsCheck(cfg).run(ctx);
+  const hit = new Map((out.findings ?? []).map((f) => [f.line, f.rule]));
+  assert.equal(hit.get(1), 'AWS access key ID');
+  assert.equal(hit.get(2), 'Stripe key');
+  assert.equal(hit.get(3), 'Stripe key');
+  assert.equal(hit.get(4), 'GitHub token');
+  assert.equal(hit.get(5), 'Private key');
+  assert.equal(hit.get(6), 'Hard-coded credential');
+  assert.equal(hit.get(7), 'Credentials in URL');
+  for (const l of [8, 9, 10, 11]) assert.ok(!hit.has(l), `line ${l} should not be flagged`);
+  for (const f of out.findings ?? []) assert.ok(!f.message.includes('4eC39HqLyjWDarjtT1zdp7dc'), 'secret is masked');
+});

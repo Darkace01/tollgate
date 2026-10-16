@@ -1,14 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { builtinChecks } from './checks/builtin';
-import { biomeCheck, customChecks, lintStagedCheck, npmScriptChecks } from './checks/commands';
+import { biomeCheck, customChecks, lintStagedCheck, npmScriptChecks, prettierCheck } from './checks/commands';
 import type { CheckContext, CheckDef } from './checks/context';
 import { type ConfigSources, loadConfig } from './config';
 import { type FileSet, currentBranch, git, gitCommonDir, isBinary, stageFiles, stagedFileSet, unstagedFiles, workingTreeFileSet } from './git';
 import { matchesAny } from './glob';
 import type { CheckResult, GuardConfig, RunReport, Stage } from './types';
 
-export const STATE_DIR = 'precommit-guard';
+export const STATE_DIR = 'tollgate';
 
 export interface RunOptions extends ConfigSources {
   root: string;
@@ -41,6 +41,7 @@ export async function collectChecks(config: GuardConfig, root: string, stage: St
     ...builtinChecks(config).filter((d) => d.stage === stage),
     ...lintStagedCheck(config, root, stage),
     ...biomeCheck(config, root, stage),
+    ...prettierCheck(config, root, stage),
     ...(await npmScriptChecks(config, root, stage, getFiles)),
     ...customChecks(config, root, stage),
   ];

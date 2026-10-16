@@ -1,0 +1,7 @@
+{
+  "extends": "recommended",
+  "checks": {
+    "commitMessage": { "enabled": true },
+    "debugStatements": { "exclude": ["src/cli.ts", "test/**", "scripts/**"] }
+  }
+}

@@ -2,8 +2,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CustomCheck, GuardConfig, Preset } from './types';
 
-export const CONFIG_FILES = ['.precommitrc.json', '.precommitrc.local.json'];
-export const PACKAGE_JSON_KEY = 'precommitGuard';
+export const CONFIG_FILES = ['.tollgaterc.json', '.tollgaterc.local.json'];
+export const PACKAGE_JSON_KEY = 'tollgate';
 
 type DeepPartial<T> = { [K in keyof T]?: T[K] extends (infer U)[] ? U[] : T[K] extends object ? DeepPartial<T[K]> : T[K] };
 export type PartialConfig = DeepPartial<GuardConfig>;
@@ -46,6 +46,7 @@ export function baseDefaults(): GuardConfig {
       },
       lintStaged: { enabled: 'auto', severity: 'error', timeoutSec: 300 },
       biome: { enabled: 'auto', severity: 'error', mode: 'check', applyFixes: false, extraArgs: [], timeoutSec: 300 },
+      prettier: { enabled: 'auto', severity: 'error', applyFixes: false, extraArgs: [], timeoutSec: 300 },
       secrets: { enabled: true, severity: 'error', extraPatterns: [], allowlist: [] },
       conflictMarkers: { enabled: true, severity: 'error' },
       debugStatements: {
@@ -236,8 +237,8 @@ export interface LoadedConfig {
 
 /**
  * Resolution order (later wins):
- *   base defaults → preset (`extends`) → VS Code settings → package.json "precommitGuard"
- *   → .precommitrc.json (team, committed) → .precommitrc.local.json (personal, gitignored)
+ *   base defaults → preset (`extends`) → VS Code settings → package.json "tollgate"
+ *   → .tollgaterc.json (team, committed) → .tollgaterc.local.json (personal, gitignored)
  */
 export function loadConfig(repoRoot: string, sources: ConfigSources = {}): LoadedConfig {
   const used: string[] = ['defaults'];
@@ -279,17 +280,17 @@ export function sampleConfig(): Record<string, unknown> {
     extends: 'recommended',
     failOn: 'error',
     checks: {
-      npmScripts: { scripts: ['lint', 'typecheck'] },
       debugStatements: { severity: 'warning' },
-      commitMessage: { enabled: false, preset: 'conventional' },
       protectedBranches: { branches: ['main', 'master'] },
+      commitMessage: { enabled: false, preset: 'conventional' },
+      prettier: { applyFixes: false },
     },
     custom: [
       {
-        name: 'Prettier (staged files)',
-        command: 'npx --no-install prettier --check {files}',
-        glob: '**/*.{js,jsx,ts,tsx,json,css,scss,md}',
-        severity: 'warning',
+        name: 'Unit tests',
+        command: 'npm test',
+        stage: 'pre-push',
+        severity: 'error',
         enabled: false,
       },
     ],

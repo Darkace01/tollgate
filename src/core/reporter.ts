@@ -12,7 +12,7 @@ export function formatReport(report: RunReport, opts: FormatOptions): string {
   const paint = (c: keyof typeof codes, s: string) => (opts.color ? `\u001b[${codes[c]}m${s}\u001b[0m` : s);
   const max = opts.maxFindings ?? 15;
   const lines: string[] = [];
-  lines.push(paint('bold', `▸ Pre-Commit Guard · ${report.stage}`));
+  lines.push(paint('bold', `▸ Tollgate · ${report.stage}`));
   if (report.fixedFiles?.length) lines.push(paint('cyan', `  ✎ auto-fixed and re-staged ${report.fixedFiles.length} file(s)`));
   if (!report.results.length) lines.push(paint('gray', '  (no checks configured for this stage)'));
 
@@ -52,7 +52,8 @@ export function formatReport(report: RunReport, opts: FormatOptions): string {
         paint('gray', `  (${(report.durationMs / 1000).toFixed(1)}s)`),
     );
     lines.push(paint('gray', '  Skip one check:  SKIP=<id> git commit …   Skip all:  git commit --no-verify'));
-    lines.push(paint('gray', `  Failed ids: ${failed.map((r) => r.id).join(', ')}`));
+    const blocking = failed.filter((r) => r.severity === 'error');
+    lines.push(paint('gray', `  Failed ids: ${(blocking.length ? blocking : failed).map((r) => r.id).join(', ')}`));
   } else if (failed.length) {
     lines.push(paint('yellow', `⚠ passed with ${failed.length} warning(s)`) + paint('gray', `  (${(report.durationMs / 1000).toFixed(1)}s)`));
   } else {

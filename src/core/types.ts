@@ -52,6 +52,17 @@ export interface BiomeConfig {
   timeoutSec: number;
 }
 
+export interface PrettierConfig {
+  /** `auto` runs when a Prettier config or the prettier dependency is found and no npm script already runs prettier. */
+  enabled: boolean | 'auto';
+  severity: Severity;
+  exclude?: string[];
+  /** Format fully-staged files with --write and re-stage them instead of only checking. */
+  applyFixes: boolean;
+  extraArgs: string[];
+  timeoutSec: number;
+}
+
 export interface SecretsConfig extends BaseCheckConfig {
   extraPatterns: PatternRule[];
   /** Regexes; a matched line that also matches any of these is ignored. */
@@ -118,6 +129,7 @@ export interface ChecksConfig {
   npmScripts: NpmScriptsConfig;
   lintStaged: LintStagedConfig;
   biome: BiomeConfig;
+  prettier: PrettierConfig;
   secrets: SecretsConfig;
   conflictMarkers: BaseCheckConfig;
   debugStatements: DebugStatementsConfig;

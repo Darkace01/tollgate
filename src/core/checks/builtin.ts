@@ -390,7 +390,8 @@ export function validateCommitMessage(raw: string, cfg: GuardConfig): Finding[] 
   const all = lines.join('\n').trim();
   if (!all) return [{ line: 1, message: 'Commit message is empty' }];
   if (all.length < c.minLength) findings.push({ line: 1, message: `Message is too short (${all.length} < ${c.minLength} chars)` });
-  if (subject.length > c.maxSubjectLength) findings.push({ line: 1, message: `Subject is ${subject.length} chars (max ${c.maxSubjectLength})` });
+  if (c.maxSubjectLength > 0 && subject.length > c.maxSubjectLength)
+    findings.push({ line: 1, message: `Subject is ${subject.length} chars (max ${c.maxSubjectLength})` });
   if (c.preset === 'conventional') {
     const re = new RegExp(`^(${c.types.join('|')})(\\([\\w\\-./ ,]+\\))?!?: \\S.*`);
     if (!re.test(subject))

@@ -1218,7 +1218,9 @@
                 },
                 "maxSubjectLength": {
                   "type": "number",
-                  "default": 72
+                  "minimum": 0,
+                  "default": 500,
+                  "description": "Maximum subject-line length (default 500; the strict preset uses 100). 0 = no limit."
                 },
                 "requireTicket": {
                   "type": "boolean",

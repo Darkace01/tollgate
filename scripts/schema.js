@@ -171,7 +171,12 @@ const checks = {
         pattern: { type: 'string', description: 'Extra RegExp the whole message must match (multiline).' },
         types: { type: 'array', items: { type: 'string' }, description: 'Allowed Conventional Commit types.' },
         minLength: { type: 'number', default: 10 },
-        maxSubjectLength: { type: 'number', default: 72 },
+        maxSubjectLength: {
+          type: 'number',
+          minimum: 0,
+          default: 500,
+          description: 'Maximum subject-line length (default 500; the strict preset uses 100). 0 = no limit.',
+        },
         requireTicket: { type: 'boolean', default: false, description: 'Require a ticket reference such as ABC-123.' },
         ticketPattern: { type: 'string', default: '[A-Z][A-Z0-9]+-\\d+' },
         blankLineAfterSubject: { type: 'boolean', default: true },

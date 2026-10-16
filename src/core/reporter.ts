@@ -61,3 +61,16 @@ export function formatReport(report: RunReport, opts: FormatOptions): string {
   }
   return lines.join('\n');
 }
+
+/**
+ * One line that explains a blocked commit/push on its own, e.g.
+ * "Tollgate blocked the commit: Commit message format (Subject is 74 chars (max 72))".
+ * Kept short because GUI git clients show only this line.
+ */
+export function headline(report: RunReport, blocking: (r: CheckResult) => boolean): string {
+  const what = report.stage === 'pre-push' ? 'push' : 'commit';
+  const failed = report.results.filter((r) => (r.status === 'failed' || r.status === 'error') && blocking(r));
+  const parts = failed.map((r) => `${r.name} (${r.summary.length > 80 ? `${r.summary.slice(0, 77)}…` : r.summary})`);
+  const shown = parts.slice(0, 3).join('; ') + (parts.length > 3 ? `; +${parts.length - 3} more` : '');
+  return `Tollgate blocked the ${what}: ${shown || 'checks failed'} — see the Tollgate view or the output below for details.`;
+}

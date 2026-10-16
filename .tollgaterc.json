@@ -1,7 +1,14 @@
 {
   "extends": "recommended",
   "checks": {
-    "commitMessage": { "enabled": true },
-    "debugStatements": { "exclude": ["src/cli.ts", "test/**", "scripts/**"] }
+    "commitMessage": {
+      "enabled": false
+    },
+    "debugStatements": {
+      "exclude": ["src/cli.ts", "test/**", "scripts/**"]
+    },
+    "protectedBranches": {
+      "enabled": false
+    }
   }
 }

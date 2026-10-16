@@ -3,10 +3,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { loadConfig, sampleConfig } from './core/config';
-import { fixFiles, runChecks } from './core/engine';
+import { fixFiles, isBlocking, runChecks } from './core/engine';
 import { findRepoRoot, stageFiles, stagedFiles, unstagedFiles } from './core/git';
 import { editorSettingsPath, installHooks, uninstallHooks } from './core/hooks';
-import { formatReport } from './core/reporter';
+import { formatReport, headline } from './core/reporter';
 import type { GuardConfig, Stage } from './core/types';
 
 declare const __VERSION__: string;
@@ -26,6 +26,7 @@ Usage:
 Environment:
   SKIP=id1,id2               Skip checks by id (prefix match, e.g. SKIP=npmScripts)
   TOLLGATE=0          Disable all checks
+  TOLLGATE_VERBOSE=1         Print results of passing hooks even when not in a terminal
 `;
 
 function parseArgs(argv: string[]) {
@@ -98,7 +99,17 @@ async function main(): Promise<number> {
         skip: [...(list(flags.skip) ?? []), ...(list(process.env.SKIP) ?? [])],
       });
       if (flags.json) console.log(JSON.stringify(report, null, 2));
-      else if (report.results.length || cmd === 'run') console.error(formatReport(report, { color, verbose: !!flags.verbose }));
+      else if (cmd === 'hook') {
+        // GUI clients (VS Code's commit button, GitHub Desktop…) show only the FIRST line of the hook's
+        // output, and git sends every hook's output to stderr. So: when blocked, lead with a one-line
+        // reason; when passing outside a terminal, stay quiet so an earlier stage's banner never becomes
+        // the error message shown for a later stage's failure.
+        if (report.blocked) {
+          console.error(`${headline(report, (r) => isBlocking(r, config))}\n${formatReport(report, { color, verbose: !!flags.verbose })}`);
+        } else if ((process.stderr.isTTY || process.env.TOLLGATE_VERBOSE === '1') && report.results.length) {
+          console.error(formatReport(report, { color, verbose: !!flags.verbose }));
+        }
+      } else console.error(formatReport(report, { color, verbose: !!flags.verbose }));
       return report.blocked ? 1 : 0;
     }
     case 'fix': {

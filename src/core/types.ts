@@ -100,6 +100,7 @@ export interface CommitMessageConfig extends BaseCheckConfig {
   pattern?: string;
   types: string[];
   minLength: number;
+  /** Maximum subject-line length; 0 = no limit. */
   maxSubjectLength: number;
   requireTicket: boolean;
   ticketPattern: string;

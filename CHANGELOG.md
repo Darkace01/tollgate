@@ -13,3 +13,5 @@ First public release.
 - Checks view with one-click enable/disable, re-run and severity changes, plus a badge, Problems panel diagnostics, a status bar item and notifications.
 - Skip checks with `SKIP=`, inline `tollgate-ignore` comments, or pause Tollgate for a workspace.
 - Husky / `core.hooksPath` integration, and chaining of existing hooks.
+- When a hook blocks a commit, the first line of its output names the failing check and the reason, so GUI clients such as VS Code's commit dialog show something useful. Passing hooks are silent outside a terminal; set `TOLLGATE_VERBOSE=1` to see their output anyway.
+- Commit subjects can be up to 500 characters by default (`commitMessage.maxSubjectLength`, where `0` means no limit). The `strict` preset uses 100.

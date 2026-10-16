@@ -21,7 +21,8 @@ const write = (f: string, c: string) => {
   fs.mkdirSync(path.dirname(path.join(repo, f)), { recursive: true });
   fs.writeFileSync(path.join(repo, f), c);
 };
-const commit = (msg: string, env: Record<string, string> = {}) => sh('git', ['commit', '-m', msg], env);
+// Tests read the hook's report, so ask for full output even though spawnSync isn't a TTY.
+const commit = (msg: string, env: Record<string, string> = {}) => sh('git', ['commit', '-m', msg], { TOLLGATE_VERBOSE: '1', ...env });
 
 before(() => {
   repo = fs.mkdtempSync(path.join(os.tmpdir(), 'pcg-e2e-'));
@@ -88,6 +89,19 @@ test('commit-msg hook enforces Conventional Commits', () => {
   assert.notEqual(r.code, 0);
   assert.match(r.out, /Conventional Commits/);
   assert.equal(commit('feat: ok two').code, 0);
+});
+
+test('GUI clients: first output line explains the block; passing stages stay quiet', () => {
+  write('src/gui.js', 'const g = 1;\n');
+  git('add', '.');
+  // No TOLLGATE_VERBOSE and no TTY — like VS Code's commit button.
+  const r = sh('git', ['commit', '-m', 'Added CI and release workflows and restored the VS Code configuration files for the project']);
+  assert.notEqual(r.code, 0);
+  const first = r.out.split(/\r?\n/).find((l) => l.trim());
+  assert.match(first ?? '', /^Tollgate blocked the commit: Commit message format \(Subject must follow Conventional Commits/);
+  const ok = sh('git', ['commit', '-m', 'feat: add gui fixture file']);
+  assert.equal(ok.code, 0, ok.out);
+  assert.doesNotMatch(ok.out, /Tollgate/);
 });
 
 test('forbidden file, conflict markers and custom command', () => {

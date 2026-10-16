@@ -143,3 +143,17 @@ test('secret scanner: detects provider keys, ignores placeholders and env lookup
   for (const l of [8, 9, 10, 11]) assert.ok(!hit.has(l), `line ${l} should not be flagged`);
   for (const f of out.findings ?? []) assert.ok(!f.message.includes('4eC39HqLyjWDarjtT1zdp7dc'), 'secret is masked');
 });
+
+test('commit message length: 500 by default, configurable, 0 = unlimited', () => {
+  const cfg = deepMerge(baseDefaults(), { checks: { commitMessage: { enabled: true } } });
+  const long = `feat: ${'x'.repeat(114)}`; // 120 chars
+  assert.deepEqual(validateCommitMessage(long, cfg), []);
+  const limited = deepMerge(cfg, { checks: { commitMessage: { maxSubjectLength: 72 } } });
+  const r = validateCommitMessage(long, limited);
+  assert.ok(Array.isArray(r) && r.some((f) => /Subject is 120 chars \(max 72\)/.test(f.message)));
+  const huge = `feat: ${'x'.repeat(495)}`; // 501 chars
+  const d = validateCommitMessage(huge, cfg);
+  assert.ok(Array.isArray(d) && d.some((f) => /Subject is 501 chars \(max 500\)/.test(f.message)));
+  const unlimited = deepMerge(cfg, { checks: { commitMessage: { maxSubjectLength: 0 } } });
+  assert.deepEqual(validateCommitMessage(huge, unlimited), []);
+});

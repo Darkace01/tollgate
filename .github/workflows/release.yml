@@ -33,6 +33,10 @@ jobs:
       - name: Publish to Open VSX (Cursor, VSCodium, Windsurf…)
         if: ${{ env.OVSX_PAT != '' }}
         run: npx ovsx publish tollgate.vsix
+      - name: Publish to GitHub Packages
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: softprops/action-gh-release@v3
         with:
           files: tollgate.vsix

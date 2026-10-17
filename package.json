@@ -8,6 +8,10 @@
     "name": "Kazeem Quadri"
   },
   "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "@darkace01:registry": "https://npm.pkg.github.com"
+  },
   "icon": "media/icon.png",
   "galleryBanner": {
     "color": "#1B2547",

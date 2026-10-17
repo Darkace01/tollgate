@@ -324,7 +324,11 @@ function formatCheck(cfg: GuardConfig, root: string, csharpier: boolean): CheckD
           if (ctx.mode === 'staged' && !mine.length) continue;
           // --include paths are relative to the folder dotnet runs in (the target's folder).
           for (const chunk of mine.length ? chunkArgs(mine.map((f) => relativeTo(t.dir, f))) : [[]]) {
-            jobs.push({ label: t.path, dir: t.dir, args: `format${sub}${targetArg(t)} --no-restore${verify}${chunk.length ? ` --include ${chunk.map(q).join(' ')}` : ''}` });
+            jobs.push({
+              label: t.path,
+              dir: t.dir,
+              args: `format${sub}${targetArg(t)} --no-restore${verify}${chunk.length ? ` --include ${chunk.map(q).join(' ')}` : ''}`,
+            });
           }
         }
       }

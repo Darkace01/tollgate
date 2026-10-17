@@ -12,6 +12,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
       OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
       - uses: actions/checkout@v7
@@ -31,12 +32,10 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish to VS Code Marketplace
-        if: ${{ secrets.VSCE_PAT != '' }}
+        if: ${{ env.VSCE_PAT != '' }}
         run: npx vsce publish --no-dependencies --packagePath tollgate.vsix
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
       - name: Publish to Open VSX (Cursor, VSCodium, Windsurf…)
-        if: ${{ secrets.OVSX_PAT != '' }}
+        if: ${{ env.OVSX_PAT != '' }}
         run: npx ovsx publish tollgate.vsix
       - name: Upload .vsix to GitHub Releases
         uses: softprops/action-gh-release@v3

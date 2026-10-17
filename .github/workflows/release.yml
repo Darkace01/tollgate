@@ -37,7 +37,11 @@ jobs:
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: softprops/action-gh-release@v3
+        continue-on-error: true
+      - name: Upload .vsix to GitHub Releases
+        uses: softprops/action-gh-release@v3
         with:
           files: tollgate.vsix
           generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

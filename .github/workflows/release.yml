@@ -27,10 +27,6 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npx vsce package --no-dependencies -o tollgate.vsix
-      - name: Publish to GitHub Packages
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish to VS Code Marketplace
         if: ${{ env.VSCE_PAT != '' }}
         run: npx vsce publish --no-dependencies --packagePath tollgate.vsix

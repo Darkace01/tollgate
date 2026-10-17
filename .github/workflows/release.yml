@@ -26,18 +26,18 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npx vsce package --no-dependencies -o tollgate.vsix
-      - name: Publish to VS Code Marketplace
-        run: npx vsce publish --no-dependencies --packagePath tollgate.vsix
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      - name: Publish to Open VSX (Cursor, VSCodium, Windsurf…)
-        if: ${{ env.OVSX_PAT != '' }}
-        run: npx ovsx publish tollgate.vsix
       - name: Publish to GitHub Packages
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
+      - name: Publish to VS Code Marketplace
+        if: ${{ secrets.VSCE_PAT != '' }}
+        run: npx vsce publish --no-dependencies --packagePath tollgate.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Publish to Open VSX (Cursor, VSCodium, Windsurf…)
+        if: ${{ secrets.OVSX_PAT != '' }}
+        run: npx ovsx publish tollgate.vsix
       - name: Upload .vsix to GitHub Releases
         uses: softprops/action-gh-release@v3
         with:

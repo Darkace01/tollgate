@@ -32,7 +32,11 @@ namespace Tollgate.Core
             };
         }
 
-        public static string Location(Finding f) =>
-            f.File == null ? "" : f.File + (f.Line.HasValue ? $":{f.Line}" : "") + (f.Column.HasValue ? $":{f.Column}" : "");
+        public static string Location(Finding f)
+        {
+            string lineSuffix = f.Line.HasValue ? $":{f.Line}" : "";
+            string columnSuffix = f.Column.HasValue ? $":{f.Column}" : "";
+            return f.File == null ? "" : f.File + lineSuffix + columnSuffix;
+        }
     }
 }

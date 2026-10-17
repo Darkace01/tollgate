@@ -1,5 +1,5 @@
 <Solution>
   <Project Path="src/Tollgate.Core/Tollgate.Core.csproj" />
-  <Project Path="src/Tollgate.VisualStudio/Tollgate.VisualStudio.csproj" />
+  <Project Path="src/Tollgate.VisualStudio/Tollgate.VisualStudio.csproj" Id="274fbafd-5083-4ebb-aa7f-cde3be368956" />
   <Project Path="tests/Tollgate.Core.Tests/Tollgate.Core.Tests.csproj" />
 </Solution>

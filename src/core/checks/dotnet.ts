@@ -324,7 +324,7 @@ function formatCheck(cfg: GuardConfig, root: string, csharpier: boolean): CheckD
           if (ctx.mode === 'staged' && !mine.length) continue;
           // --include paths are relative to the folder dotnet runs in (the target's folder).
           for (const chunk of mine.length ? chunkArgs(mine.map((f) => relativeTo(t.dir, f))) : [[]]) {
-            jobs.push({ label: t.path, dir: t.dir, args: `format${sub}${targetArg(t)}${verify}${chunk.length ? ` --include ${chunk.map(q).join(' ')}` : ''}` });
+            jobs.push({ label: t.path, dir: t.dir, args: `format${sub}${targetArg(t)} --no-restore${verify}${chunk.length ? ` --include ${chunk.map(q).join(' ')}` : ''}` });
           }
         }
       }
@@ -352,7 +352,7 @@ function buildCheck(cfg: GuardConfig, root: string): CheckDef {
       const skipped: string[] = [];
       const targets = await resolveDotnetTargets(root, cfg, staged, skipped);
       if (!targets.length) return { status: 'skipped', summary: skipped.length ? legacySummary(skipped) : 'No .NET solution or project found' };
-      const flags = `-nologo -v q -clp:NoSummary -c ${q(c.build.configuration)}${c.build.warningsAsErrors ? ' -warnaserror' : ''}${
+      const flags = `--no-restore -nologo -v q -clp:NoSummary -c ${q(c.build.configuration)}${c.build.warningsAsErrors ? ' -warnaserror' : ''}${
         c.build.extraArgs.length ? ` ${c.build.extraArgs.map(q).join(' ')}` : ''
       }`;
       return runAcrossTargets(

@@ -248,6 +248,8 @@ test('.NET: dotnet format + build block a broken C# commit; applyFixes formats a
   );
   git('add', '.');
   assert.equal(sh('node', [CLI, 'install']).code, 0);
+  // Pre-restore the dependency-free project to create assets.json for later --no-restore builds.
+  sh('dotnet', ['restore', 'src/Lib/Lib.csproj'], { DOTNET_NOLOGO: '1', DOTNET_CLI_TELEMETRY_OPTOUT: '1' });
 
   let r = commit('feat: add greeter');
   assert.notEqual(r.code, 0, r.out);
@@ -351,6 +353,8 @@ test('monorepo .NET: a solution in a sub-folder is built from its own folder', (
   write('.tollgaterc.json', JSON.stringify({ checks: { dotnet: { format: { enabled: false } } } }));
   git('add', '.');
   assert.equal(sh('node', [CLI, 'install']).code, 0);
+  // Pre-restore the dependency-free project to create assets.json for later --no-restore builds.
+  sh('dotnet', ['restore', 'backend/Backend.sln'], { DOTNET_NOLOGO: '1', DOTNET_CLI_TELEMETRY_OPTOUT: '1' });
 
   let r = commit('feat: add greeter');
   assert.notEqual(r.code, 0, r.out);

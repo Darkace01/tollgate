@@ -2,7 +2,7 @@
   "name": "tollgate",
   "displayName": "Tollgate — Pre-Commit Checks",
   "description": "Pre-commit checks that just work: runs your lint, typecheck, Biome and Prettier, blocks secrets, debug code, conflict markers and large files, and enforces commit message rules — from VS Code or the terminal.",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "publisher": "KazeemQuadri",
   "author": {
     "name": "Kazeem Quadri"

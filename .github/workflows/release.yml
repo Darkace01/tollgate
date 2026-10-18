@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -31,8 +32,8 @@ jobs:
         if: ${{ env.VSCE_PAT != '' }}
         run: npx vsce publish --no-dependencies --packagePath tollgate.vsix
       - name: Publish to Open VSX (Cursor, VSCodium, Windsurf…)
-        run: npx ovsx publish tollgate.vsix --pat ${{ secrets.OVSX_PAT }}
-        if: ${{ secrets.OVSX_PAT != '' }}
+        if: ${{ env.OVSX_PAT != '' }}
+        run: npx ovsx publish tollgate.vsix
         continue-on-error: true
       - name: Upload .vsix to GitHub Releases
         uses: softprops/action-gh-release@v3

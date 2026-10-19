@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Every commit stops at the gate.</b><br>
-  Tollgate runs your linters, type-checker and formatter, and catches secrets, debug code, merge conflicts and oversized files <i>before</i> they reach your repository. It works whether you commit from VS Code or the terminal, and needs no setup.
+  Tollgate runs your linters, type-checker and formatter, catches secrets, debug code, merge conflicts and oversized files <i>before</i> they reach your repository. Works with JavaScript, TypeScript, .NET/C#, and monorepos. No setup required.
 </p>
 
 ---
@@ -15,10 +15,11 @@
 
 ## Why Tollgate?
 
-- **Works on day one.** Open a repo and accept the prompt. Tollgate finds your `lint`, `typecheck` and `format:check` scripts, plus Biome, Prettier and lint-staged, and checks them on every commit.
+- **Works on day one.** Open a repo and accept the prompt. Tollgate finds your `lint`, `typecheck` and `format:check` scripts, auto-detects Biome, Prettier, .NET and CSharpier, and checks them on every commit.
 - **Works in VS Code and the terminal.** It installs real git hooks, so commits from the Source Control panel, the terminal and other Git clients are all checked. Results always appear in VS Code.
 - **Points at the problem.** Problems show up in a Checks view, the Problems panel and as squiggles in your code. Click any finding to jump to the exact line.
 - **Only checks what you changed.** Content checks only look at the lines you added, so problems in old code never block your commit.
+- **Monorepo-ready.** Runs each check from the right folder, detects project ownership, and handles nested solutions and package.json scripts automatically.
 - **Configurable down to each check.** You can turn every check on or off, choose whether it blocks or warns, and tune it. You can also add any shell command as your own check.
 - **Shared with your team.** Commit a `.tollgaterc.json` and everyone gets the same rules, with autocomplete and validation in the editor.
 
@@ -28,11 +29,11 @@
 
 | Check | What it does | Default |
 | --- | --- | --- |
-| **package.json scripts** | Runs `lint`, `typecheck`, `tsc`, `format:check` and similar if they exist. Detects npm / yarn / pnpm / bun. Monorepo aware. | ✅ blocks |
-| **Biome** | `biome check` on staged files when the project uses Biome | ✅ auto |
+| **package.json scripts** | Runs `lint`, `typecheck`, `tsc`, `format:check` and similar if they exist. Detects npm / yarn / pnpm / bun. **Monorepo aware**: runs in the nearest package that has them. | ✅ blocks |
+| **Biome** | `biome check` on staged files when the project uses Biome. Auto-detected in monorepos. | ✅ auto |
 | **Prettier** | `prettier --check` on staged files when the project uses Prettier. Can format and re-stage for you. | ✅ auto |
-| **lint-staged** | Runs your lint-staged config | ✅ auto |
-| **.NET (C#)** | `dotnet format` on staged C#/VB files, `dotnet build`, CSharpier if you use it, and optionally `dotnet test` on push. See [C# and .NET](#c-and-net). | ✅ auto |
+| **lint-staged** | Runs your lint-staged config, per-package in monorepos. | ✅ auto |
+| **.NET (C#/VB)** | `dotnet format` on staged files, `dotnet build`, CSharpier, and optionally `dotnet test` on push. **Monorepo aware**: finds the right .sln/.slnx and runs from the correct folder. See [C# and .NET](#c-and-net). | ✅ auto |
 | **Secrets & credentials** | AWS, GitHub, GitLab, Stripe, Slack, Google, OpenAI, Anthropic, npm, Azure, SendGrid and Twilio keys, JWTs, private keys, passwords in code, in URLs and in connection strings. Matches are masked in the output. | ✅ blocks |
 | **Merge conflict markers** | `<<<<<<<` / `=======` / `>>>>>>>` | ✅ blocks |
 | **JSON syntax** | Staged `.json` files must parse (comments are allowed in `tsconfig.json`, `appsettings.json`, `launchSettings.json` and `.vscode/`) | ✅ blocks |
@@ -70,7 +71,7 @@ Use **Tollgate: Enable / Disable Checks…** to pick checks from a list:
 
 ## Getting started
 
-1. **Install** Tollgate from the Marketplace.
+1. **Install** Tollgate from the Marketplace (v1.1.2+).
 2. **Open a git repository.** Tollgate offers to install its git hooks. Click **Install hooks**.
 3. **Commit as usual.** If a blocking check fails, the commit is stopped and Tollgate shows you why.
 
@@ -156,12 +157,14 @@ All `.tollgaterc.json` options (`checks`, `custom`, `extends`, `failOn`, `exclud
 
 Tollgate turns its .NET checks on when your repo has a `.sln`, `.slnx` or project file and the `dotnet` CLI is on your PATH. Without the SDK, the checks are skipped and never block. Old-style (non-SDK) projects, such as classic .NET Framework apps and VSIX extensions, can't be built with `dotnet build`, so they're skipped too.
 
+**New in v1.1.2: Full monorepo support.** Tollgate automatically finds the right solution for each project, handles nested global.json and tool manifests, and runs CSharpier from the correct folder.
+
 | Part | What it runs | Default |
 | --- | --- | --- |
 | `dotnet:format` | `dotnet format --verify-no-changes`, limited to the staged files and following your `.editorconfig` | ✅ blocks |
-| `dotnet:build` | `dotnet build` on the solution, or on the projects that own the staged files. Errors are reported with file and line. | ✅ blocks |
-| `dotnet:csharpier` | `csharpier check` when CSharpier is in `.config/dotnet-tools.json` or the repo has a `.csharpierrc` (replaces `dotnet format` whitespace checks) | ✅ auto |
-| `dotnet:test` | `dotnet test`, at pre-push | off (on in `strict`) |
+| `dotnet:build` | `dotnet build` on the solution or projects that own the staged files. Errors are reported with file and line. **Monorepo aware**: finds the right .sln/.slnx in any parent folder. | ✅ blocks |
+| `dotnet:csharpier` | `csharpier check` when CSharpier is in `.config/dotnet-tools.json` or the repo has a `.csharpierrc`. Runs from the folder that has the tool manifest. Replaces `dotnet format` whitespace checks. | ✅ auto |
+| `dotnet:test` | `dotnet test`, at pre-push. Respects nested test projects in monorepos. | off (on in `strict`) |
 
 ```jsonc
 {
@@ -176,16 +179,25 @@ Tollgate turns its .NET checks on when your repo has a `.sln`, `.slnx` or projec
 }
 ```
 
-Skip it for one commit with `SKIP=dotnet git commit …`, or only the build with `SKIP=dotnet:build`. Using Visual Studio? Tollgate is [available there too](visualstudio/README.md), with the same config.
+Skip it for one commit with `SKIP=dotnet git commit …`, or only the build with `SKIP=dotnet:build`. 
+
+### Using Tollgate with Visual Studio
+
+Tollgate is [available as a Visual Studio extension](visualstudio/README.md) with the same config and checks. Install it alongside the VS Code extension to use the same `.tollgaterc.json` in both editors.
+
+## Monorepo support
+
+Nothing has to live at the repo root. Each check runs from the folder that owns the staged file:
+
+- **package.json scripts** run in the nearest package that has them when the root package.json is missing or has none of the configured scripts. Set `"npmScripts": { "scope": "affected" }` to always do that.
+- **Biome, Prettier and lint-staged** run from the nearest folder with their config file or dependency, using that package's `node_modules` and package manager.
+- **.NET/C# (v1.1.2+)** automatically finds the correct `.sln` or `.slnx` in the project folder or any parent that references the changed project. Respects nested `global.json`, tool manifests and `.csharpierrc` files. CSharpier runs from the folder that has its configuration. Set `dotnet.target` to pin a single solution or project.
+- **Custom checks** can use `{root}` to refer to the repository root, or run from a specific folder by setting `cwd` in the check definition.
 
 ## Works with your existing setup
 
 - **Existing git hooks** are kept and run before Tollgate's checks.
 - **Husky / `core.hooksPath`:** run **Tollgate: Integrate with Husky** to add a one-line call to your Husky hooks. That line does nothing for teammates who don't have Tollgate, so it's safe to commit.
-- **Monorepos:** nothing has to live at the repo root. Each check runs from the folder that owns the staged file:
-  - **package.json scripts** run in the nearest package that has them when the root package.json is missing or has none of the configured scripts. Set `"npmScripts": { "scope": "affected" }` to always do that.
-  - **Biome, Prettier and lint-staged** run from the nearest folder with their config file or dependency, using that package's `node_modules` and package manager.
-  - **.NET** builds the solution (in the project's folder or any parent) that includes each changed project, or the project itself, and runs `dotnet` from that folder so a nested `global.json` or tool manifest applies. CSharpier runs from the folder that has its tool manifest or `.csharpierrc`. Set `dotnet.target` to pin a single solution or project.
 
 ## Using it without VS Code
 
@@ -210,6 +222,9 @@ The built-in checks only read staged changes and take milliseconds. Your scripts
 
 **Can my team use it without the extension?**
 Yes, for Husky users: integrate once and commit the hook line. Teammates without the extension skip it silently.
+
+**Do I need to install the .NET SDK?**
+No, but Tollgate's .NET checks won't run without it. They're automatically skipped if `dotnet` isn't on your PATH.
 
 ## Feedback
 

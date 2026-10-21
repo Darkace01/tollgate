@@ -2,7 +2,7 @@
   "name": "tollgate",
   "displayName": "Tollgate — Pre-Commit Checks",
   "description": "Pre-commit checks that just work: runs your lint, typecheck, Biome and Prettier, blocks secrets, debug code, conflict markers and large files, and enforces commit message rules — from VS Code or the terminal.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "publisher": "KazeemQuadri",
   "author": {
     "name": "Kazeem Quadri"
@@ -667,6 +667,11 @@
                   "type": "number",
                   "minimum": 1,
                   "default": 600
+                },
+                "isolateOutput": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Build and test into a private folder (needs the .NET 8+ SDK) so an app running via `dotnet run`/`dotnet watch` does not lock the binaries and fail the checks."
                 },
                 "format": {
                   "type": "object",

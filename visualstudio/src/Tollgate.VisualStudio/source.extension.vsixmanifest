@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="Tollgate.VisualStudio.KazeemQuadri" Version="1.2.0" Language="en-US" Publisher="Kazeem Quadri" />
+    <Identity Id="Tollgate.VisualStudio.KazeemQuadri" Version="1.2.1" Language="en-US" Publisher="Kazeem Quadri" />
     <DisplayName>Tollgate — Pre-Commit Checks for Visual Studio</DisplayName>
     <Description xml:space="preserve">Pre-commit checks that just work for C# and .NET: dotnet format, dotnet build and CSharpier on staged files, plus secrets, debug code, conflict markers, large and forbidden files, and commit message rules. Results in a Tollgate window and the Error List.</Description>
     <MoreInfo>https://github.com/Darkace01/tollgate</MoreInfo>

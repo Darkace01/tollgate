@@ -86,6 +86,12 @@ const checks = {
         fileExtensions: { type: 'array', items: { type: 'string' }, description: 'Staged files that make the .NET checks relevant.' },
         exclude: globs('Globs to ignore, on top of the global `exclude`.'),
         timeoutSec: { type: 'number', minimum: 1, default: 600 },
+        isolateOutput: {
+          type: 'boolean',
+          default: true,
+          description:
+            'Build and test into a private folder (needs the .NET 8+ SDK) so an app running via `dotnet run`/`dotnet watch` does not lock the binaries and fail the checks.',
+        },
         format: {
           type: 'object',
           additionalProperties: false,

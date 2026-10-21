@@ -76,6 +76,8 @@ export interface DotnetConfig {
   /** Globs to ignore, on top of the global `exclude`. */
   exclude?: string[];
   timeoutSec: number;
+  /** Build/test into a private folder so a running app (`dotnet run`/`watch`) can't lock the binaries. */
+  isolateOutput: boolean;
   format: {
     enabled: boolean;
     /** `auto` = `all`, or `style` when CSharpier handles formatting. */

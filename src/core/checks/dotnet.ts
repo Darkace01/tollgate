@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { runShell, shellQuote } from '../exec';
 import { git, stageFiles, unstagedFiles } from '../git';
@@ -289,6 +291,16 @@ async function runAcrossTargets(rc: RunCtx, jobs: DotnetJob[], okSummary: string
 }
 
 const q = (s: string) => shellQuote(s);
+
+/**
+ * MSBuild flags that send bin/ and obj/ to a per-repo temp folder, so a running app (`dotnet run`, `dotnet watch`,
+ * a debugger) can't lock the binaries. Needs the .NET 8+ SDK; older SDKs ignore the properties (no isolation, no error).
+ * obj/ moves too, so the build must restore into it (callers drop --no-restore).
+ */
+function isolationFlags(root: string): string {
+  const id = createHash('sha1').update(path.resolve(root).toLowerCase()).digest('hex').slice(0, 12);
+  return `-p:UseArtifactsOutput=true -p:ArtifactsPath=${q(path.join(os.tmpdir(), 'tollgate-dotnet', id))}`;
+}
 /** The target as seen from its own folder (dotnet runs there). */
 const targetArg = (t: DotnetTarget) => (t.path ? ` ${q(relativeTo(t.dir, t.path))}` : '');
 
@@ -356,9 +368,9 @@ function buildCheck(cfg: GuardConfig, root: string): CheckDef {
       const skipped: string[] = [];
       const targets = await resolveDotnetTargets(root, cfg, staged, skipped);
       if (!targets.length) return { status: 'skipped', summary: skipped.length ? legacySummary(skipped) : 'No .NET solution or project found' };
-      const flags = `--no-restore -nologo -v q -clp:NoSummary -c ${q(c.build.configuration)}${c.build.warningsAsErrors ? ' -warnaserror' : ''}${
-        c.build.extraArgs.length ? ` ${c.build.extraArgs.map(q).join(' ')}` : ''
-      }`;
+      const flags = `${c.isolateOutput ? isolationFlags(root) : '--no-restore'} -nologo -v q -clp:NoSummary -c ${q(c.build.configuration)}${
+        c.build.warningsAsErrors ? ' -warnaserror' : ''
+      }${c.build.extraArgs.length ? ` ${c.build.extraArgs.map(q).join(' ')}` : ''}`;
       return runAcrossTargets(
         rc,
         targets.map((t) => ({ label: t.path, dir: t.dir, args: `build${targetArg(t)} ${flags}` })),
@@ -381,7 +393,7 @@ function testCheck(cfg: GuardConfig, root: string, stage: Stage): CheckDef {
       const skipped: string[] = [];
       const targets = await resolveDotnetTargets(root, cfg, await stagedDotnetFiles(rc), skipped);
       if (!targets.length) return { status: 'skipped', summary: skipped.length ? legacySummary(skipped) : 'No .NET solution or project found' };
-      const flags = `--nologo -v q${c.test.filter ? ` --filter ${q(c.test.filter)}` : ''}${c.test.extraArgs.length ? ` ${c.test.extraArgs.map(q).join(' ')}` : ''}`;
+      const flags = `--nologo -v q${c.isolateOutput ? ` ${isolationFlags(root)}` : ''}${c.test.filter ? ` --filter ${q(c.test.filter)}` : ''}${c.test.extraArgs.length ? ` ${c.test.extraArgs.map(q).join(' ')}` : ''}`;
       return runAcrossTargets(
         rc,
         targets.map((t) => ({ label: t.path, dir: t.dir, args: `test${targetArg(t)} ${flags}` })),

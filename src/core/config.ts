@@ -71,6 +71,7 @@ export function baseDefaults(): GuardConfig {
           '.editorconfig',
         ],
         timeoutSec: 600,
+        isolateOutput: true,
         format: { enabled: true, mode: 'auto', applyFixes: false },
         build: { enabled: true, configuration: 'Debug', warningsAsErrors: false, extraArgs: [] },
         test: { enabled: false, stage: 'pre-push', extraArgs: [] },
